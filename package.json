@@ -1,0 +1,12 @@
+{
+  "name": "discord-roblox-bot",
+  "version": "5.0.0",
+  "description": "Bot de Discord con verificacion de Roblox, presencia, roles automaticos y comandos slash",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3"
+  }
+}
