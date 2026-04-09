@@ -13,8 +13,92 @@
 // ============================================================
 
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const db     = require('./database.js');
-const roblox = require('./roblox.js');
+
+// ── Database (Upstash Redis via HTTP) ────────────────────────
+const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+async function redisGet(key) {
+  const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  });
+  const data = await res.json();
+  return data.result ? JSON.parse(data.result) : null;
+}
+
+async function redisSet(key, value) {
+  await fetch(`${REDIS_URL}/set/${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: JSON.stringify(value) }),
+  });
+}
+
+async function redisDel(key) {
+  await fetch(`${REDIS_URL}/del/${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+  });
+}
+
+const db = {
+  getUser:      (id)       => redisGet(`user:${id}`),
+  saveUser:     (id, data) => redisSet(`user:${id}`, { discordId: id, ...data }),
+  deleteUser:   (id)       => redisDel(`user:${id}`),
+  getGuildConf: (id)       => redisGet(`guild:${id}`),
+  saveGuildConf:(id, data) => redisSet(`guild:${id}`, data),
+};
+
+// ── Roblox API ────────────────────────────────────────────────
+const ROBLOX_COOKIE = process.env.ROBLOX_COOKIE;
+
+async function robloxFetch(url, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (ROBLOX_COOKIE) headers['Cookie'] = `.ROBLOSECURITY=${ROBLOX_COOKIE}`;
+  try {
+    const res = await fetch(url, { ...options, headers });
+    if (!res.ok) return null;
+    return res.json();
+  } catch (e) { console.error('robloxFetch:', e.message); return null; }
+}
+
+const roblox = {
+  getUserByName: async (username) => {
+    const data = await robloxFetch('https://users.roblox.com/v1/usernames/users', {
+      method: 'POST', body: JSON.stringify({ usernames: [username], excludeBannedUsers: false }),
+    });
+    return data?.data?.[0] ?? null;
+  },
+  getProfile:       (id) => robloxFetch(`https://users.roblox.com/v1/users/${id}`),
+  getAvatar:   async (id) => {
+    const data = await robloxFetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${id}&size=420x420&format=Png`);
+    return data?.data?.[0]?.imageUrl ?? null;
+  },
+  getFriendCount:   async (id) => (await robloxFetch(`https://friends.roblox.com/v1/users/${id}/friends/count`))?.count ?? 0,
+  getFollowerCount: async (id) => (await robloxFetch(`https://friends.roblox.com/v1/users/${id}/followers/count`))?.count ?? 0,
+  getFollowingCount:async (id) => (await robloxFetch(`https://friends.roblox.com/v1/users/${id}/followings/count`))?.count ?? 0,
+  getGroups: async (id) => {
+    const data = await robloxFetch(`https://groups.roblox.com/v1/users/${id}/groups/roles`);
+    return data?.data ?? [];
+  },
+  getPresence: async (id) => {
+    const data = await robloxFetch('https://presence.roblox.com/v1/presence/users', {
+      method: 'POST', body: JSON.stringify({ userIds: [id] }),
+    });
+    return data?.userPresences?.[0] ?? null;
+  },
+  getGameName: async (universeId) => {
+    if (!universeId) return null;
+    const data = await robloxFetch(`https://games.roblox.com/v1/games?universeIds=${universeId}`);
+    return data?.data?.[0]?.name ?? null;
+  },
+  formatPresence: (type) => ({
+    0: { label: '⚫ Desconectado',           color: 0x99AAB5 },
+    1: { label: '🟢 Conectado (web o app)',   color: 0x57F287 },
+    2: { label: '🎮 Jugando en este momento', color: 0x00B0F4 },
+    3: { label: '🛠️ En Roblox Studio',        color: 0xFEE75C },
+  }[type] ?? { label: '❓ Desconocido', color: 0x99AAB5 }),
+};
 
 // Verificaciones pendientes (en memoria, expiran en 10 minutos)
 // Se guardan aquí y no en Redis porque son temporales
@@ -400,58 +484,4 @@ async function cmdBindRole(ctx, groupId, minRank, role) {
 }
 
 async function cmdUnbindRole(ctx, groupId) {
-  const config = await db.getGuildConf(ctx.guild.id);
-  if (!config?.bindings?.length) return ctx.reply('❌ No hay vinculaciones configuradas.');
-  config.bindings = config.bindings.filter(b => String(b.groupId) !== String(groupId));
-  await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Vinculación del grupo \`${groupId}\` eliminada.`);
-}
-
-async function cmdListRoles(ctx) {
-  const config = await db.getGuildConf(ctx.guild.id);
-  const verifiedRole  = config?.verifiedRoleId ? `<@&${config.verifiedRoleId}>` : '_No configurado_';
-  const bindingsText  = config?.bindings?.length
-    ? config.bindings.map(b => `• Grupo \`${b.groupId}\` · Rango ≥ **${b.minRank}** → <@&${b.roleId}>`).join('\n')
-    : '_Sin vinculaciones_';
-
-  const embed = new EmbedBuilder()
-    .setTitle('⚙️ Configuración de roles de este servidor')
-    .setColor(0x5865F2)
-    .addFields(
-      { name: '✅ Rol de verificado',              value: verifiedRole },
-      { name: '🏰 Vinculaciones de grupos Roblox', value: bindingsText },
-    );
-
-  ctx.reply({ embeds: [embed] });
-}
-
-// ── Ayuda ────────────────────────────────────────────────────
-
-async function cmdAyuda(ctx) {
-  const embed = new EmbedBuilder()
-    .setTitle('📋 Comandos disponibles')
-    .setColor(0x5865F2)
-    .setDescription('Todos los comandos funcionan con `/` (slash) y también con `!` o `?`.')
-    .addFields(
-      { name: '🔐 Verificación',
-        value: '`/verificar <usuario>` — Vincula tu cuenta de Roblox\n`/confirmar` — Confirma poniendo el código en tu descripción\n`/actualizar` — Re-sincroniza tus roles\n`/desvincular` — Desvincula tu cuenta' },
-      { name: '👤 Perfil y datos',
-        value: '`/perfil [@usuario]` — Perfil completo con estadísticas\n`/avatar [@usuario]` — Avatar de Roblox\n`/grupos [@usuario]` — Grupos con rol y rango\n`/estado [@usuario]` — Conectado / Jugando / Desconectado\n`/buscar <usuario>` — Busca cualquier usuario de Roblox' },
-      { name: '🔒 Privacidad (solo con ! o ?)',
-        value: '`!permitir presencia` — Dejar que otros vean tu juego\n`!permitir perfil` — Dejar que otros vean tu perfil\n`!bloquear presencia` — Ocultar en qué juegas\n`!bloquear perfil` — Ocultar tu perfil' },
-      { name: '⚙️ Administración (requiere permiso Gestionar Roles)',
-        value: '`/setverifiedrole <rol>` — Define el rol de verificado\n`/bindrole <grupoId> <rangoMin> <rol>` — Vincula grupo → rol\n`/unbindrole <grupoId>` — Elimina una vinculación\n`/listroles` — Lista las vinculaciones actuales' },
-    )
-    .setFooter({ text: 'Bot de verificación Roblox v5.0' });
-
-  ctx.reply({ embeds: [embed] });
-}
-
-module.exports = {
-  cmdVerificar, cmdConfirmar, cmdPerfil, cmdAvatar, cmdEstado,
-  cmdGrupos, cmdBuscar, cmdActualizar, cmdDesvincular,
-  cmdPermitir, cmdBloquear,
-  cmdSetVerifiedRole, cmdBindRole, cmdUnbindRole, cmdListRoles,
-  cmdAyuda,
-};
-    
+  const config = await
