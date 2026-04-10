@@ -4,7 +4,15 @@
 //  alertas de presencia, amigos, botones interactivos,
 //  menús desplegables y paginación
 // ============================================================
+const fetch = require('node-fetch');
 
+process.on("uncaughtException", (err) => {
+  console.error("💥 uncaughtException:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("💥 unhandledRejection:", err);
+});
 const {
   EmbedBuilder, PermissionFlagsBits,
   ActionRowBuilder, ButtonBuilder, ButtonStyle,
