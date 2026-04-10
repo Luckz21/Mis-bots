@@ -1,7 +1,15 @@
 // ============================================================
 //  bot.js  —  Punto de entrada v6.0
 // ============================================================
+const fetch = require('node-fetch');
 
+process.on("uncaughtException", (err) => {
+  console.error("💥 uncaughtException:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("💥 unhandledRejection:", err);
+});
 const {
   Client, GatewayIntentBits,
   REST, Routes,
