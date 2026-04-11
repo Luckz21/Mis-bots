@@ -470,19 +470,6 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200); res.end('🤖 Bot Roblox activo');
   }
 });
-          console.log(`⭐ Premium activado: ${discordId} por ${durationDays} días (${payload.from_name})`);
-          try {
-            const user = await client.users.fetch(discordId);
-            await user.send(`⭐ ¡Gracias por tu apoyo **${payload.from_name}**!\n\nTu Premium ha sido activado por **${durationDays} días**.\nUsa \`/premium\` para verificarlo y \`/flex\` para estrenar tu nueva tarjeta de perfil.`);
-          } catch { console.log('DM fallido al usuario', discordId); }
-        }
-        res.writeHead(200); res.end('OK');
-      } catch (e) { console.error('Webhook error:', e.message); res.writeHead(500); res.end(); }
-    });
-  } else {
-    res.writeHead(200); res.end('🤖 Bot Roblox v10.6 — Activo');
-  }
-});
 
 // ── Arranque ──────────────────────────────────────────────────
 client.once('ready', async () => {
