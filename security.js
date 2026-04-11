@@ -1,5 +1,6 @@
 // ============================================================
 //  security.js  —  Cooldowns, caché, blacklist, rate limiting
+//  + Saneamiento avanzado, caché para outfits, RAP
 // ============================================================
 
 // ── Caché LRU en memoria (sin dependencias externas) ─────────
@@ -43,6 +44,8 @@ const groupCache    = new LRUCache(200, 5  * 60 * 1000); // 5 min
 const presenceCache = new LRUCache(500, 30 * 1000);       // 30 seg (presencia cambia rápido)
 const friendCache   = new LRUCache(100, 5  * 60 * 1000); // 5 min
 const badgeCache    = new LRUCache(200, 10 * 60 * 1000); // 10 min
+const outfitCache   = new LRUCache(100, 2  * 60 * 1000); // 2 min (ropa actual)
+const rapCache      = new LRUCache(200, 15 * 60 * 1000); // 15 min (valor RAP)
 
 // ── Sistema de cooldowns por usuario ─────────────────────────
 // Previene spam de comandos
@@ -140,8 +143,8 @@ class CooldownManager {
   }
 }
 
-// ── Saneamiento de inputs ─────────────────────────────────────
-// Evita inyecciones y caracteres invisibles
+// ── Saneamiento de inputs (mejorado) ─────────────────────────
+// Evita inyecciones, caracteres invisibles, y normaliza nombres
 
 function sanitizeUsername(input) {
   if (!input || typeof input !== 'string') return null;
@@ -165,6 +168,11 @@ function sanitizeText(input, maxLen = 200) {
     .slice(0, maxLen);
 }
 
+// Normalizar string para búsquedas
+function normalizeString(str) {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
 // ── Exportar instancias únicas (singleton) ────────────────────
 const cooldowns = new CooldownManager();
 
@@ -172,6 +180,7 @@ module.exports = {
   cooldowns,
   profileCache, avatarCache, groupCache,
   presenceCache, friendCache, badgeCache,
-  sanitizeUsername, sanitizeText,
+  outfitCache, rapCache,
+  sanitizeUsername, sanitizeText, normalizeString,
   CooldownManager,
 };
