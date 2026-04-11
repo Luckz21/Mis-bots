@@ -89,7 +89,6 @@ const slashCommands = [
     .addStringOption(o => o.setName('id').setDescription('ID del item (usa /tienda para ver)').setRequired(true)),
   new SlashCommandBuilder().setName('rob').setDescription('Intentar robar puntos a otro usuario')
     .addUserOption(o => o.setName('usuario').setDescription('Víctima').setRequired(true)),
-  new SlashCommandBuilder().setName('trivia').setDescription('Responder una pregunta de trivia sobre Roblox para ganar puntos'),
   // Moderación
   new SlashCommandBuilder().setName('whois').setDescription('Ver qué cuenta de Roblox tiene un usuario de Discord').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord').setRequired(true)),
   new SlashCommandBuilder().setName('syncall').setDescription('⭐ Sincronizar roles de todos los miembros verificados'),
