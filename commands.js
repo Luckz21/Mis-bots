@@ -1908,6 +1908,9 @@ async function cmdAyuda(ctx) {
 }
 
 // ── Exportaciones ─────────────────────────────────────────────
+// ... (todo el código anterior de commands.js permanece igual) ...
+
+// ── Exportaciones ─────────────────────────────────────────────
 module.exports = {
   // Verificación
   cmdCaptcha, cmdVerificar, cmdConfirmar,
@@ -1915,7 +1918,8 @@ module.exports = {
   cmdPerfil, cmdAvatar, cmdEstado, cmdGrupos, cmdAmigos, cmdInsignias,
   cmdHistorialNombres, cmdBuscar, cmdWhoisRoblox, cmdOutfit, cmdRAP,
   // Premium
-  cmdPremiumStatus, cmdActivarPremium, cmdComparar, cmdFlex, cmdMiStats,
+  cmdPremiumStatus, cmdActivarPremium, cmdDesactivarPremium, // <-- AÑADIDO
+  cmdComparar, cmdFlex, cmdMiStats,
   cmdAddAlt, cmdAlts, cmdSetFlexBg,
   // Historial
   cmdHistorial,
