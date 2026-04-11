@@ -393,10 +393,15 @@ client.on('messageCreate', async (message) => {
 client.on('guildMemberAdd', (member) => cmd.onMemberJoin(member).catch(console.error));
 client.on('guildCreate',    (guild)  => cmd.onGuildAdd(guild).catch(console.error));
 
-// ── Webhook Ko-fi con detección automática de tier ───────────
-// Tiers: $0.50-$2.99 = 2 días | $3.00-$6.99 = 7 días | $7.00+ = 30 días
-// El usuario debe poner su Discord ID en el mensaje de la donación
+// ── Webhook Ko-fi y Health Check ─────────────────────────────
 const server = http.createServer(async (req, res) => {
+  // Health check para Railway (GET /)
+  if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/kofi') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -404,7 +409,10 @@ const server = http.createServer(async (req, res) => {
       try {
         const params  = new URLSearchParams(body);
         const payload = JSON.parse(params.get('data') || '{}');
-        if (KOFI_TOKEN && payload.verification_token !== KOFI_TOKEN) { res.writeHead(401); return res.end(); }
+        if (KOFI_TOKEN && payload.verification_token !== KOFI_TOKEN) { 
+          res.writeHead(401); 
+          return res.end(); 
+        }
 
         const message = payload.message || '';
         const match   = message.match(/\b(\d{17,19})\b/);
@@ -416,7 +424,6 @@ const server = http.createServer(async (req, res) => {
         const discordId = match[1];
         const amount    = parseFloat(payload.amount ?? '0');
 
-        // Detección de tier por monto donado
         let durationDays, tierName, tierEmoji;
         if (amount >= 0.50 && amount < 3.00) {
           durationDays = 2;  tierName = 'Starter (2 días)';  tierEmoji = '🌟';
@@ -432,10 +439,8 @@ const server = http.createServer(async (req, res) => {
         const data    = { activatedAt: new Date().toISOString(), expiresAt: expDate, kofiName: payload.from_name, amount, durationDays };
         const encoded = encodeURIComponent(JSON.stringify(data));
 
-        // Guardar premium en Redis
         await fetch(`${RURL}/set/premium:${discordId}/${encoded}`, { headers: { Authorization: `Bearer ${RTOKEN}` } });
 
-        // Añadir a lista premium_users_list
         try {
           const lr   = await fetch(`${RURL}/get/premium_users_list`, { headers: { Authorization: `Bearer ${RTOKEN}` } });
           const ld   = await lr.json();
@@ -449,7 +454,6 @@ const server = http.createServer(async (req, res) => {
 
         console.log(`${tierEmoji} Premium: ${discordId} → ${tierName} ($${amount}) — ${payload.from_name}`);
 
-        // Notificar por DM
         try {
           const user = await client.users.fetch(discordId);
           const expF = new Date(expDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -466,7 +470,8 @@ const server = http.createServer(async (req, res) => {
       } catch (e) { console.error('Webhook error:', e.message); res.writeHead(500); res.end(); }
     });
   } else {
-    res.writeHead(200); res.end('🤖 Bot Roblox activo');
+    res.writeHead(404);
+    res.end();
   }
 });
 
@@ -476,7 +481,7 @@ client.once('ready', async () => {
   await registerSlashCommands();
   await cmd.startPresenceMonitor(client);
   const PORT = process.env.PORT || 3000;
-  server.listen(PORT, () => console.log(`🌐 Servidor webhook activo en puerto ${PORT}`));
+  server.listen(PORT, '0.0.0.0', () => console.log(`🌐 Servidor webhook activo en puerto ${PORT}`));
 });
 
 client.login(TOKEN);
