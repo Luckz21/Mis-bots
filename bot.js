@@ -127,12 +127,13 @@ const slashCommands = [
       .addChoices({ name: '🇪🇸 Español', value: 'es' }, { name: '🇺🇸 English', value: 'en' }, { name: '🇧🇷 Português', value: 'pt' }))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder().setName('setprefix').setDescription('[Admin] Cambiar el prefijo para comandos de texto').addStringOption(o => o.setName('prefijo').setDescription('Nuevo prefijo (ej: $)').setRequired(true)).setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    // ... resto de comandos ...
   new SlashCommandBuilder().setName('setvoicecategory').setDescription('[Premium] Configurar categoría para canales de voz automáticos').addChannelOption(o => o.setName('categoria').setDescription('Categoría de voz').setRequired(true).addChannelTypes(ChannelType.GuildCategory)).setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   new SlashCommandBuilder().setName('activarpremium').setDescription('[Owner] Activar Premium manualmente')
-    .addUserOption(o => o.setName('usuario').setDescription('Usuario').setRequired(true))
+    .addStringOption(o => o.setName('usuario_id').setDescription('ID de Discord del usuario').setRequired(true))
     .addIntegerOption(o => o.setName('dias').setDescription('Días (vacío = permanente)')),
   new SlashCommandBuilder().setName('desactivarpremium').setDescription('[Owner] Desactivar Premium de un usuario')
-    .addUserOption(o => o.setName('usuario').setDescription('Usuario al que quitar Premium').setRequired(true)),
+    .addStringOption(o => o.setName('usuario_id').setDescription('ID de Discord del usuario').setRequired(true)),
 ].map(c => c.toJSON());
 
 async function registerSlashCommands() {
@@ -243,8 +244,12 @@ client.on('interactionCreate', async (interaction) => {
       case 'setlang':          await cmd.cmdSetLang(ctx, interaction.options.getString('idioma')); break;
       case 'setprefix':        await cmd.cmdSetPrefix(ctx, interaction.options.getString('prefijo')); break;
       case 'setvoicecategory': await cmd.cmdSetVoiceCategory(ctx, interaction.options.getChannel('categoria').id); break;
-      case 'activarpremium':    await cmd.cmdActivarPremium(ctx, interaction.options.getUser('usuario').id, interaction.options.getInteger('dias')); break;
-      case 'desactivarpremium': await cmd.cmdDesactivarPremium(ctx, interaction.options.getUser('usuario').id); break;
+      case 'activarpremium':
+  await cmd.cmdActivarPremium(ctx, interaction.options.getString('usuario_id'), interaction.options.getInteger('dias'));
+  break;
+case 'desactivarpremium':
+  await cmd.cmdDesactivarPremium(ctx, interaction.options.getString('usuario_id'));
+  break;
     }
   } catch (e) {
     console.error(`Error en /${interaction.commandName}:`, e);
