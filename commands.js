@@ -661,7 +661,7 @@ const row2 = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId(`btn_sync_${entry.robloxId}`).setLabel('🔄 Sincronizar roles').setStyle(ButtonStyle.Secondary),
 );
 
-  const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
+  const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row1, row2] });
   if (!msg) return;
   const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 120000 });
   collector.on('collect', async (i) => {
