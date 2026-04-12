@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LockBox | El Bot Definitivo de Roblox para Discord</title>
+    <meta name="description" content="Verificación Roblox, economía, tienda de colores, logros, premium y mucho más. ¡Añade LockBox a tu servidor!">
+    <meta name="theme-color" content="#1900ff">
+    
+    <!-- Fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Estilos -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Fondo de partículas -->
+    <canvas id="particle-canvas"></canvas>
+    
+    <!-- Overlay de gradiente -->
+    <div class="gradient-overlay"></div>
+
+    <!-- Header -->
+    <header id="header">
+        <nav class="container">
+            <a href="#" class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <span>LockBox</span>
+            </a>
+            <div class="nav-links">
+                <a href="#features">Funciones</a>
+                <a href="#stats">Estadísticas</a>
+                <a href="#commands">Comandos</a>
+                <a href="https://discord.com/oauth2/authorize?client_id=TU_CLIENT_ID&permissions=8&scope=bot%20applications.commands" class="btn btn-outline" target="_blank">
+                    <i class="fab fa-discord"></i> Invitar
+                </a>
+            </div>
+            <button class="mobile-menu-btn" aria-label="Menú">
+                <i class="fas fa-bars"></i>
+            </button>
+        </nav>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container hero-container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="pulse-dot"></span>
+                    v10.7 · Más de 60 comandos
+                </div>
+                <h1 class="hero-title">
+                    Eleva tu servidor con el poder de
+                    <span class="gradient-text">Roblox</span>
+                </h1>
+                <p class="hero-description">
+                    Verificación segura, economía competitiva, logros, tienda de colores y funciones premium. Todo lo que tu comunidad necesita en un solo bot.
+                </p>
+                <div class="hero-actions">
+                    <a href="https://discord.com/oauth2/authorize?client_id=TU_CLIENT_ID&permissions=8&scope=bot%20applications.commands" class="btn btn-primary" target="_blank">
+                        <i class="fab fa-discord"></i> Añadir a Discord
+                    </a>
+                    <a href="#features" class="btn btn-secondary">
+                        <i class="fas fa-chevron-down"></i> Explorar
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-server"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" data-count="1250">0</span>
+                            <span class="stat-label">Servidores</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-users"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" data-count="45800">0</span>
+                            <span class="stat-label">Usuarios</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-terminal"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-number" data-count="2100000">0</span>
+                            <span class="stat-label">Comandos</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="floating-card">
+                    <div class="card-header">
+                        <div class="card-header-left">
+                            <i class="fas fa-robot"></i>
+                            <span>LockBox</span>
+                        </div>
+                        <div class="card-header-right">
+                            <span class="online-badge"><i class="fas fa-circle"></i> Online</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="command-preview">
+                            <div class="command-line">
+                                <span class="prompt">></span>
+                                <span class="command">/perfil @usuario</span>
+                            </div>
+                            <div class="command-result">
+                                <div class="result-header">
+                                    <img src="https://tr.rbxcdn.com/30b43fc17b3d6b1d0d3e6b0a2b6d6c1d/150/150/AvatarHeadshot/Png" alt="Avatar" class="avatar-preview">
+                                    <div>
+                                        <div class="result-name">RobloxUser</div>
+                                        <div class="result-badge">Bronce · 1,250 pts</div>
+                                    </div>
+                                </div>
+                                <div class="result-stats">
+                                    <div class="stat-row"><span>Amigos</span><span>245</span></div>
+                                    <div class="stat-row"><span>Seguidores</span><span>1.2K</span></div>
+                                    <div class="stat-row"><span>Grupos</span><span>12</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="floating-elements">
+                    <div class="float-item item-1"><i class="fas fa-star"></i></div>
+                    <div class="float-item item-2"><i class="fas fa-coins"></i></div>
+                    <div class="float-item item-3"><i class="fas fa-shield"></i></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">¿Qué ofrecemos?</span>
+                <h2>Características <span class="gradient-text">poderosas</span></h2>
+                <p>Todo lo que necesitas para administrar y hacer crecer tu comunidad de Roblox en Discord.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card" data-aos="fade-up">
+                    <div class="feature-icon"><i class="fas fa-shield-hal"></i></div>
+                    <h3>Verificación Roblox</h3>
+                    <p>Sistema seguro con código único en descripción y captcha anti-bots. Vincula cuentas en segundos.</p>
+                    <a href="#" class="feature-link">Saber más <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="feature-card" data-aos="fade-up" data-aos-delay="100">
+                    <div class="feature-icon"><i class="fas fa-coins"></i></div>
+                    <h3>Economía & Robos</h3>
+                    <p>Gana puntos diarios, apuesta en coinflip, roba a otros usuarios y escala en el ranking global.</p>
+                    <a href="#" class="feature-link">Saber más <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="feature-card" data-aos="fade-up" data-aos-delay="200">
+                    <div class="feature-icon"><i class="fas fa-palette"></i></div>
+                    <h3>Tienda de Colores</h3>
+                    <p>Personaliza el color de tus embeds con más de 30 colores. Desbloquéalos con puntos.</p>
+                    <a href="#" class="feature-link">Saber más <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="feature-card" data-aos="fade-up">
+                    <div class="feature-icon"><i class="fas fa-crown"></i></div>
+                    <h3>Premium Exclusivo</h3>
+                    <p>Funciones premium: /flex, /comparar, alertas ilimitadas y cooldowns reducidos a la mitad.</p>
+                    <a href="#" class="feature-link">Saber más <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="feature-card" data-aos="fade-up" data-aos-delay="100">
+                    <div class="feature-icon"><i class="fas fa-trophy"></i></div>
+                    <h3>Logros y Rangos</h3>
+                    <p>Desbloquea más de 20 insignias y sube de Bronce a Dios completando desafíos únicos.</p>
+                    <a href="#" class="feature-link">Saber más <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="feature-card" data-aos="fade-up" data-aos-delay="200">
+                    <div class="feature-icon"><i class="fas fa-bell"></i></div>
+                    <h3>Alertas en Vivo</h3>
+                    <p>Recibe notificaciones cuando tus amigos se conecten o empiecen a jugar en Roblox.</p>
+                    <a href="#" class="feature-link">Saber más <i class="fas fa-arrow-right"></i></a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section id="stats" class="stats">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-box-icon"><i class="fas fa-server"></i></div>
+                    <div class="stat-box-content">
+                        <span class="stat-box-number" data-count="1250">0</span>
+                        <span class="stat-box-label">Servidores activos</span>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-icon"><i class="fas fa-user-check"></i></div>
+                    <div class="stat-box-content">
+                        <span class="stat-box-number" data-count="45800">0</span>
+                        <span class="stat-box-label">Usuarios verificados</span>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-icon"><i class="fas fa-terminal"></i></div>
+                    <div class="stat-box-content">
+                        <span class="stat-box-number" data-count="2100000">0</span>
+                        <span class="stat-box-label">Comandos ejecutados</span>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-icon"><i class="fas fa-star"></i></div>
+                    <div class="stat-box-content">
+                        <span class="stat-box-number" data-count="420">0</span>
+                        <span class="stat-box-label">Usuarios Premium</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Commands Section -->
+    <section id="commands" class="commands">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Comandos</span>
+                <h2>Más de <span class="gradient-text">60 comandos</span> a tu disposición</h2>
+                <p>Organizados en categorías para que encuentres lo que necesitas rápidamente.</p>
+            </div>
+            <div class="commands-grid">
+                <div class="command-category">
+                    <div class="category-title">
+                        <i class="fas fa-key"></i> Verificación
+                    </div>
+                    <ul>
+                        <li><code>/captcha</code> – Anti-bot</li>
+                        <li><code>/verificar</code> – Vincular cuenta</li>
+                        <li><code>/confirmar</code> – Confirmar código</li>
+                        <li><code>/desvincular</code> – Desvincular</li>
+                    </ul>
+                </div>
+                <div class="command-category">
+                    <div class="category-title">
+                        <i class="fas fa-user"></i> Perfil
+                    </div>
+                    <ul>
+                        <li><code>/perfil</code> – Dashboard</li>
+                        <li><code>/estado</code> – Presencia</li>
+                        <li><code>/grupos</code> – Grupos Roblox</li>
+                        <li><code>/amigos</code> – Lista de amigos</li>
+                    </ul>
+                </div>
+                <div class="command-category">
+                    <div class="category-title">
+                        <i class="fas fa-coins"></i> Economía
+                    </div>
+                    <ul>
+                        <li><code>/daily</code> – Recompensa diaria</li>
+                        <li><code>/puntos</code> – Ver saldo</li>
+                        <li><code>/rob</code> – Robar puntos</li>
+                        <li><code>/tienda</code> – Comprar colores</li>
+                    </ul>
+                </div>
+                <div class="command-category">
+                    <div class="category-title">
+                        <i class="fas fa-star"></i> Premium
+                    </div>
+                    <ul>
+                        <li><code>/premium</code> – Estado</li>
+                        <li><code>/buy</code> – Comprar (PayPal)</li>
+                        <li><code>/flex</code> – Tarjeta exclusiva</li>
+                        <li><code>/comparar</code> – Comparar cuentas</li>
+                    </ul>
+                </div>
+                <div class="command-category">
+                    <div class="category-title">
+                        <i class="fas fa-gamepad"></i> Minijuegos
+                    </div>
+                    <ul>
+                        <li><code>/trivia</code> – Preguntas Roblox</li>
+                        <li><code>/triviacustom</code> – Preguntas personalizadas</li>
+                        <li><code>/coinflip</code> – Apuesta</li>
+                        <li><code>/logros</code> – Ver insignias</li>
+                    </ul>
+                </div>
+                <div class="command-category">
+                    <div class="category-title">
+                        <i class="fas fa-tools"></i> Admin
+                    </div>
+                    <ul>
+                        <li><code>/setverifiedrole</code> – Rol verificado</li>
+                        <li><code>/setpremiumrole</code> – Rol premium</li>
+                        <li><code>/bindrole</code> – Vincular grupo</li>
+                        <li><code>/syncall</code> – Sincronizar roles</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <div class="cta-box">
+                <h2>¿Listo para transformar tu servidor?</h2>
+                <p>Únete a miles de comunidades que ya confían en LockBox para gestionar su experiencia Roblox en Discord.</p>
+                <div class="cta-buttons">
+                    <a href="https://discord.com/oauth2/authorize?client_id=TU_CLIENT_ID&permissions=8&scope=bot%20applications.commands" class="btn btn-primary" target="_blank">
+                        <i class="fab fa-discord"></i> Invitar Bot
+                    </a>
+                    <a href="https://discord.gg/tuservidor" class="btn btn-outline-light" target="_blank">
+                        <i class="fab fa-discord"></i> Servidor de Soporte
+                    </a>
+                </div>
+                <div class="cta-note">
+                    <i class="fas fa-shield"></i> Más de 2.1 millones de comandos ejecutados
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <i class="fas fa-robot"></i>
+                        <span>LockBox</span>
+                    </div>
+                    <p>El bot todo en uno para conectar Roblox con Discord.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Discord"><i class="fab fa-discord"></i></a>
+                        <a href="#" aria-label="GitHub"><i class="fab fa-github"></i></a>
+                        <a href="#" aria-label="X"><i class="fab fa-x-twitter"></i></a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Enlaces</h4>
+                    <ul>
+                        <li><a href="#features">Funciones</a></li>
+                        <li><a href="#commands">Comandos</a></li>
+                        <li><a href="#">Premium</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#">Términos de Servicio</a></li>
+                        <li><a href="#">Política de Privacidad</a></li>
+                        <li><a href="#">Cookies</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Recursos</h4>
+                    <ul>
+                        <li><a href="#">Documentación</a></li>
+                        <li><a href="#">Reportar Bug</a></li>
+                        <li><a href="#">Estado del Bot</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 LockBox. No afiliado con Roblox Corporation.</p>
+                <p>Hecho con <i class="fas fa-heart" style="color: #ff4d4d;"></i> para la comunidad</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
