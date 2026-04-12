@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Documentación – LockBox</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    :root {
+      --bg:     #08090f;
+      --bg2:    #0d0f1c;
+      --card:   #111326;
+      --border: #1e2240;
+      --blue:   #3b48f5;
+      --blue-s: #5566ff;
+      --text:   #e8eaf6;
+      --muted:  #8b90b8;
+      --white:  #ffffff;
+      --green:  #4ade80;
+      --yellow: #f59e0b;
+      --red:    #f87171;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px;
+      background: rgba(8,9,15,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--white);
+    }
+    .nav-brand img {
+      width: 30px; height: 30px; object-fit: contain;
+      filter: drop-shadow(0 0 8px var(--blue));
+    }
+    .nav-brand span {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 1.1rem;
+    }
+    .nav-back {
+      display: flex; align-items: center; gap: 6px;
+      color: var(--muted); text-decoration: none;
+      font-size: 0.875rem; font-weight: 500;
+      padding: 7px 14px; border-radius: 8px;
+      border: 1px solid var(--border);
+      transition: background .2s, color .2s;
+    }
+    .nav-back:hover { background: var(--border); color: var(--white); }
+
+    .docs-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      max-width: 1100px;
+      margin: 0 auto;
+      min-height: calc(100vh - 61px);
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--border);
+      padding: 28px 0;
+      position: sticky; top: 61px;
+      height: calc(100vh - 61px);
+      overflow-y: auto;
+    }
+    .sidebar::-webkit-scrollbar { width: 3px; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .sidebar-label {
+      font-size: 0.68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--muted); padding: 0 22px;
+      display: block; margin-bottom: 6px; margin-top: 20px;
+    }
+    .sidebar-label:first-child { margin-top: 0; }
+    .sidebar-link {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 22px;
+      color: var(--muted); text-decoration: none;
+      font-size: 0.875rem;
+      border-left: 2px solid transparent;
+      transition: color .15s, background .15s;
+    }
+    .sidebar-link:hover { color: var(--white); background: #ffffff05; }
+    .sidebar-link.active {
+      color: var(--blue-s); background: #3b48f510;
+      border-left-color: var(--blue);
+    }
+    .sidebar-link .icon { width: 18px; text-align: center; font-size: 0.9rem; }
+
+    .docs-content { padding: 48px 52px 100px; min-width: 0; }
+
+    .mob-toggle {
+      display: none; align-items: center; gap: 8px;
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); font-size: 0.875rem; font-weight: 500;
+      padding: 10px 16px; border-radius: 8px;
+      cursor: pointer; width: 100%; margin-bottom: 32px;
+    }
+
+    .doc-section { margin-bottom: 68px; scroll-margin-top: 80px; }
+    .section-tag {
+      display: inline-block; color: var(--blue-s);
+      font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px;
+    }
+    h2.sh {
+      font-family: 'Syne', sans-serif; font-weight: 800;
+      font-size: clamp(1.6rem, 3vw, 2rem);
+      letter-spacing: -0.03em; color: var(--white); margin-bottom: 10px;
+    }
+    .divider { border: none; border-top: 1px solid var(--border); margin-bottom: 24px; }
+    p.bt { color: var(--muted); font-size: 0.93rem; margin-bottom: 16px; max-width: 620px; }
+
+    .info-box {
+      border-radius: 10px; padding: 13px 17px;
+      font-size: 0.875rem; margin: 14px 0;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .info-box p { margin: 0; color: var(--text); }
+    .ib-icon { flex-shrink: 0; }
+    .ib-blue   { background: #3b48f510; border: 1px solid #3b48f530; }
+    .ib-yellow { background: #f59e0b10; border: 1px solid #f59e0b30; }
+
+    .cmd-grid { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .cmd-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 11px; padding: 16px 20px; transition: border-color .2s;
+    }
+    .cmd-card:hover { border-color: #3b48f550; }
+    .cmd-top {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 7px;
+      flex-wrap: wrap; gap: 7px;
+    }
+    .cmd-name {
+      font-family: monospace; background: var(--blue);
+      color: #fff; font-size: 0.83rem; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px;
+    }
+    .badge {
+      font-size: 0.7rem; font-weight: 700;
+      padding: 3px 8px; border-radius: 100px;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .b-free  { background: #4ade8015; color: var(--green);  border: 1px solid #4ade8030; }
+    .b-prem  { background: #f59e0b15; color: var(--yellow); border: 1px solid #f59e0b30; }
+    .b-admin { background: #f8717115; color: var(--red);    border: 1px solid #f8717130; }
+    .cmd-desc { color: var(--muted); font-size: 0.88rem; }
+
+    .doc-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.875rem; }
+    .doc-table th {
+      text-align: left; padding: 9px 13px;
+      background: var(--card); color: var(--muted);
+      font-weight: 600; font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-table td {
+      padding: 11px 13px; border-bottom: 1px solid var(--border);
+      color: var(--muted); vertical-align: middle;
+    }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table tr:hover td { background: #ffffff03; }
+    .doc-table code {
+      background: var(--bg2); border: 1px solid var(--border);
+      color: var(--blue-s); font-size: 0.8rem;
+      padding: 2px 6px; border-radius: 4px;
+    }
+    .doc-table strong { color: var(--text); }
+
+    .faq-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .faq-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 11px; overflow: hidden;
+    }
+    .faq-q {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 20px; cursor: pointer;
+      font-weight: 600; font-size: 0.92rem; color: var(--white);
+      user-select: none; transition: background .15s;
+    }
+    .faq-q:hover { background: #ffffff05; }
+    .arrow { color: var(--muted); font-size: 0.75rem; transition: transform .25s; flex-shrink: 0; margin-left: 12px; }
+    .faq-item.open .arrow { transform: rotate(180deg); }
+    .faq-a {
+      display: none; padding: 14px 20px 16px;
+      color: var(--muted); font-size: 0.88rem;
+      border-top: 1px solid var(--border);
+    }
+    .faq-item.open .faq-a { display: block; }
+    .faq-a code {
+      background: var(--bg2); border: 1px solid var(--border);
+      color: var(--blue-s); font-size: 0.8rem;
+      padding: 2px 6px; border-radius: 4px;
+    }
+    a.doc-link { color: var(--blue-s); text-decoration: none; }
+    a.doc-link:hover { text-decoration: underline; }
+
+    .mob-overlay { display: none; }
+    @media(max-width: 860px) {
+      .docs-layout { grid-template-columns: 1fr; }
+      .sidebar {
+        display: none; position: fixed;
+        top: 0; left: 0; bottom: 0; width: 260px;
+        z-index: 200; background: var(--bg2);
+        border-right: 1px solid var(--border);
+        padding-top: 80px; height: 100vh;
+      }
+      .sidebar.open { display: block; }
+      .mob-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 199; }
+      .mob-overlay.open { display: block; }
+      .docs-content { padding: 28px 18px 80px; }
+      .mob-toggle { display: flex; }
+    }
+
+    footer { border-top: 1px solid var(--border); padding: 24px; text-align: center; }
+    footer p { color: var(--muted); font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-brand">
+    <img src="logo.png" alt="LockBox"/>
+    <span>LockBox</span>
+  </a>
+  <a href="index.html" class="nav-back">← Volver al inicio</a>
+</nav>
+
+<div class="docs-layout">
+
+  <aside class="sidebar" id="sidebar">
+    <span class="sidebar-label">Funciones</span>
+    <a href="#verificacion" class="sidebar-link" onclick="setActive(this)"><span class="icon">🔗</span> Verificación Roblox</a>
+    <a href="#economia"     class="sidebar-link" onclick="setActive(this)"><span class="icon">🪙</span> Economía</a>
+    <a href="#premium"      class="sidebar-link" onclick="setActive(this)"><span class="icon">👑</span> Premium</a>
+    <span class="sidebar-label">Referencia</span>
+    <a href="#comandos"     class="sidebar-link" onclick="setActive(this)"><span class="icon">📋</span> Comandos</a>
+    <a href="#faq"          class="sidebar-link" onclick="setActive(this)"><span class="icon">❓</span> FAQ</a>
+  </aside>
+
+  <div class="mob-overlay" id="overlay" onclick="closeSidebar()"></div>
+
+  <main class="docs-content">
+
+    <button class="mob-toggle" onclick="openSidebar()">☰ &nbsp;Menú</button>
+
+    <!-- VERIFICACIÓN -->
+    <div class="doc-section" id="verificacion">
+      <span class="section-tag">✦ Verificación</span>
+      <h2 class="sh">Verificación Roblox</h2>
+      <hr class="divider"/>
+      <p class="bt">Vincula tu cuenta de Roblox con Discord en tres pasos sencillos.</p>
+      <div class="cmd-grid">
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/verify</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Inicia la verificación. El bot te manda un código; ponlo en tu perfil de Roblox y confirma con <code style="background:var(--bg2);border:1px solid var(--border);color:var(--blue-s);font-size:.8rem;padding:2px 6px;border-radius:4px">/verify confirmar</code>.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/profile [usuario]</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Muestra el perfil de Roblox vinculado. Sin mencionar a nadie, muestra el tuyo.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/desvincular</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Elimina la vinculación con Roblox. <strong style="color:var(--red)">Irreversible</strong> — también borra tus datos de economía.</p>
+        </div>
+      </div>
+      <div class="info-box ib-blue" style="margin-top:18px">
+        <span class="ib-icon">💡</span>
+        <p>Una vez verificado puedes quitar el código de tu perfil de Roblox. La vinculación queda guardada permanentemente.</p>
+      </div>
+    </div>
+
+    <!-- ECONOMÍA -->
+    <div class="doc-section" id="economia">
+      <span class="section-tag">✦ Economía</span>
+      <h2 class="sh">Economía</h2>
+      <hr class="divider"/>
+      <p class="bt">Gana puntos, apuesta y compite en el ranking de tu servidor.</p>
+      <div class="cmd-grid">
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/daily</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Reclama tu recompensa diaria. 7 días seguidos = bonus extra.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/balance [usuario]</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Consulta tu saldo de puntos o el de otro usuario.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/coinflip &lt;cantidad&gt; &lt;cara|cruz&gt;</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Apuesta puntos en cara o cruz. Ganas → doblas. Pierdes → pierdes.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/rob &lt;usuario&gt;</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Intenta robarle puntos a alguien. Si fallas pierdes puntos propios. Cooldown: 1 hora.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/leaderboard</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Muestra el ranking de puntos del servidor.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/tienda</span><span class="badge b-free">Gratis</span></div>
+          <p class="cmd-desc">Ve y compra colores para personalizar tus embeds. +30 disponibles.</p>
+        </div>
+      </div>
+      <div class="info-box ib-yellow" style="margin-top:18px">
+        <span class="ib-icon">⚠️</span>
+        <p>La economía es independiente por servidor. Los puntos no se trasladan entre servidores.</p>
+      </div>
+    </div>
+
+    <!-- PREMIUM -->
+    <div class="doc-section" id="premium">
+      <span class="section-tag">✦ Premium</span>
+      <h2 class="sh">Premium</h2>
+      <hr class="divider"/>
+      <p class="bt">Desbloquea comandos exclusivos y mejoras para toda tu experiencia.</p>
+      <div class="cmd-grid">
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/flex</span><span class="badge b-prem">Premium</span></div>
+          <p class="cmd-desc">Muestra tus estadísticas de Roblox en un embed visual y personalizado.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/comparar &lt;usuario&gt;</span><span class="badge b-prem">Premium</span></div>
+          <p class="cmd-desc">Compara tu perfil de Roblox con el de otro usuario verificado.</p>
+        </div>
+        <div class="cmd-card">
+          <div class="cmd-top"><span class="cmd-name">/estado</span><span class="badge b-prem">Premium</span></div>
+          <p class="cmd-desc">Activa alertas ilimitadas: te avisa cuando alguien se conecta a Roblox.</p>
+        </div>
+      </div>
+      <table class="doc-table" style="margin-top:24px">
+        <thead><tr><th>Ventaja</th><th>Gratis</th><th>Premium</th></tr></thead>
+        <tbody>
+          <tr><td>Verificación & perfil</td><td>✅</td><td>✅</td></tr>
+          <tr><td>Economía completa</td><td>✅</td><td>✅</td></tr>
+          <tr><td>Cooldowns</td><td>Normal</td><td>⚡ −50%</td></tr>
+          <tr><td>Colores en tienda</td><td>Con puntos</td><td>✅ Todos gratis</td></tr>
+          <tr><td>Alertas de presencia</td><td>Limitadas</td><td>Ilimitadas</td></tr>
+          <tr><td>/flex · /comparar · /estado</td><td>❌</td><td>✅</td></tr>
+          <tr><td>Soporte prioritario</td><td>❌</td><td>✅</td></tr>
+        </tbody>
+      </table>
+      <div class="info-box ib-yellow" style="margin-top:4px">
+        <span class="ib-icon">💳</span>
+        <p><strong>$4.99/mes</strong> vía PayPal. Para activarlo contacta en el servidor de soporte.</p>
+      </div>
+    </div>
+
+    <!-- COMANDOS -->
+    <div class="doc-section" id="comandos">
+      <span class="section-tag">✦ Referencia</span>
+      <h2 class="sh">Todos los comandos</h2>
+      <hr class="divider"/>
+      <table class="doc-table">
+        <thead><tr><th>Comando</th><th>Descripción</th><th>Acceso</th></tr></thead>
+        <tbody>
+          <tr><td><code>/verify</code></td><td>Vincular cuenta de Roblox</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/profile [usuario]</code></td><td>Ver perfil de un usuario</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/desvincular</code></td><td>Eliminar vinculación</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/daily</code></td><td>Recompensa diaria de puntos</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/balance [usuario]</code></td><td>Ver saldo de puntos</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/coinflip &lt;cantidad&gt; &lt;elección&gt;</code></td><td>Apostar puntos</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/rob &lt;usuario&gt;</code></td><td>Robar puntos a otro usuario</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/leaderboard</code></td><td>Ranking de economía</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/tienda</code></td><td>Ver y comprar colores</td><td><span class="badge b-free">Gratis</span></td></tr>
+          <tr><td><code>/flex</code></td><td>Mostrar stats de Roblox</td><td><span class="badge b-prem">Premium</span></td></tr>
+          <tr><td><code>/comparar &lt;usuario&gt;</code></td><td>Comparar perfiles</td><td><span class="badge b-prem">Premium</span></td></tr>
+          <tr><td><code>/estado</code></td><td>Alertas de presencia</td><td><span class="badge b-prem">Premium</span></td></tr>
+          <tr><td><code>/setpremiumrole &lt;rol&gt;</code></td><td>Definir rol Premium del servidor</td><td><span class="badge b-admin">Admin</span></td></tr>
+          <tr><td><code>/bindrole &lt;grupo&gt; &lt;rol&gt;</code></td><td>Vincular grupo de Roblox a rol</td><td><span class="badge b-admin">Admin</span></td></tr>
+          <tr><td><code>/syncall</code></td><td>Sincronizar todos los roles</td><td><span class="badge b-admin">Admin</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- FAQ -->
+    <div class="doc-section" id="faq">
+      <span class="section-tag">✦ FAQ</span>
+      <h2 class="sh">Preguntas frecuentes</h2>
+      <hr class="divider"/>
+      <div class="faq-list">
+        <div class="faq-item">
+          <div class="faq-q" onclick="toggleFaq(this)">¿Cómo obtengo Premium?<span class="arrow">▼</span></div>
+          <div class="faq-a">Contacta en el servidor de soporte. El pago es por PayPal ($4.99/mes) y la activación es manual pero rápida.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q" onclick="toggleFaq(this)">El bot no me asigna el rol tras verificarme, ¿qué hago?<span class="arrow">▼</span></div>
+          <div class="faq-a">Asegúrate de que el rol de LockBox esté por encima del rol que debe asignar en la jerarquía de Discord. Si persiste, usa <code>/syncall</code> o contacta en soporte.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q" onclick="toggleFaq(this)">¿Puedo vincular más de una cuenta de Roblox?<span class="arrow">▼</span></div>
+          <div class="faq-a">No, cada Discord solo puede vincularse a una cuenta de Roblox. Usa <code>/desvincular</code> para cambiar de cuenta.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q" onclick="toggleFaq(this)">¿Los puntos se comparten entre servidores?<span class="arrow">▼</span></div>
+          <div class="faq-a">No. Cada servidor tiene su propia economía completamente independiente.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q" onclick="toggleFaq(this)">¿Qué pasa con mis datos si uso /desvincular?<span class="arrow">▼</span></div>
+          <div class="faq-a">Se eliminan permanentemente tu cuenta de Roblox vinculada, puntos y preferencias. Es irreversible. Consulta la <a href="https://lockblox.up.railway.app/privacy.html" class="doc-link" target="_blank">Política de Privacidad</a>.</div>
+        </div>
+        <div class="faq-item">
+          <div class="faq-q" onclick="toggleFaq(this)">¿El bot es gratuito?<span class="arrow">▼</span></div>
+          <div class="faq-a">Sí, la mayoría de funciones son gratuitas. El plan Premium ($4.99/mes) añade comandos exclusivos y cooldowns reducidos.</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<footer>
+  <p>© 2025 LockBox · <a href="https://lockblox.up.railway.app/terms.html" class="doc-link" target="_blank">Términos</a> · <a href="https://lockblox.up.railway.app/privacy.html" class="doc-link" target="_blank">Privacidad</a></p>
+</footer>
+
+<script>
+  function setActive(el) {
+    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+    el.classList.add('active');
+    closeSidebar();
+  }
+  function toggleFaq(el) { el.parentElement.classList.toggle('open'); }
+  function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('overlay').classList.add('open');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('overlay').classList.remove('open');
+  }
+  const sections = document.querySelectorAll('.doc-section');
+  const links    = document.querySelectorAll('.sidebar-link');
+  window.addEventListener('scroll', () => {
+    let cur = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 120) cur = s.id; });
+    links.forEach(l => {
+      l.classList.remove('active');
+      if (l.getAttribute('href') === '#' + cur) l.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
