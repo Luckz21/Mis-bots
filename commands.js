@@ -1,12 +1,9 @@
 // ============================================================
-//  commands.js  —  v10.7 (MEJORAS MASIVAS)
-//  + PayPal integrado
-//  + GIFs anime en acciones
-//  + 30+ colores en tienda
-//  + 10 rangos y 20 insignias adicionales
-//  + Perfil mejorado
-//  + Comando /dms
-//  + Ayuda con color #1900ff
+//  commands.js  —  v10.8 (FINAL CON TODAS LAS MEJORAS)
+//  + Página web profesional
+//  + Logro dueño, /cambiarcolor, tienda con indicador
+//  + GIFs, owner roba 100%, flex global, syncall admin
+//  + Trivia personalizada
 // ============================================================
 
 const {
@@ -316,37 +313,38 @@ function getRank(points) {
 
 // ── Insignias (logros) ───────────────────────────────────────
 const ACHIEVEMENTS = [
-  // Verificación
   { id: 'first_verify',  name: '🎖️ Primer Paso', desc: 'Verificar tu cuenta por primera vez' },
-  // Rachas
   { id: 'streak_7',      name: '🔥 Racha de 7 días', desc: 'Usar !daily 7 días seguidos' },
   { id: 'streak_30',     name: '🌟 Racha de 30 días', desc: 'Usar !daily 30 días seguidos' },
-  // Puntos totales
   { id: 'points_1000',   name: '💰 1000 puntos', desc: 'Acumular 1000 puntos en total' },
   { id: 'points_5000',   name: '💎 5000 puntos', desc: 'Acumular 5000 puntos en total' },
   { id: 'points_10000',  name: '🏦 10000 puntos', desc: 'Acumular 10000 puntos en total' },
   { id: 'points_50000',  name: '🚀 50000 puntos', desc: 'Acumular 50000 puntos en total' },
-  // Trivia
   { id: 'trivia_10',     name: '🧠 Aprendiz', desc: 'Responder 10 preguntas de trivia correctamente' },
   { id: 'trivia_50',     name: '📚 Erudito', desc: 'Responder 50 preguntas de trivia correctamente' },
   { id: 'trivia_100',    name: '🏛️ Sabio', desc: 'Responder 100 preguntas de trivia correctamente' },
-  // Robos
   { id: 'rob_5',         name: '🦹 Ladronzuelo', desc: 'Robar exitosamente 5 veces' },
   { id: 'rob_20',        name: '💰 Maestro del hurto', desc: 'Robar exitosamente 20 veces' },
   { id: 'rob_fail_10',   name: '🚔 Torpe', desc: 'Fallar 10 robos' },
   { id: 'rob_jail_5',    name: '🔒 Preso', desc: 'Ir a la cárcel 5 veces' },
   { id: 'bail_paid_3',   name: '💸 Fianza pagada', desc: 'Pagar fianza 3 veces' },
-  // Dinero robado total
   { id: 'stolen_1000',   name: '🪙 Mil monedas robadas', desc: 'Robar un total de 1000 puntos' },
   { id: 'stolen_10000',  name: '💼 Botín mayor', desc: 'Robar un total de 10000 puntos' },
-  // Diarias
   { id: 'daily_30',      name: '📅 Comprometido', desc: 'Reclamar 30 dailies en total' },
-  // Tienda
   { id: 'shop_5',        name: '🛍️ Comprador', desc: 'Comprar 5 items en la tienda' },
   { id: 'color_collector', name: '🎨 Coleccionista', desc: 'Comprar 10 colores diferentes' },
+  { id: 'owner_exclusive', name: '👑 Dueño del Bot', desc: 'Ser el creador y dueño de LockBox' },
 ];
 
 async function checkAchievements(discordId, eco, user) {
+  // Owner siempre tiene todos los logros
+  if (discordId === process.env.BOT_OWNER_ID) {
+    const allAchievements = ACHIEVEMENTS.map(a => a.id);
+    eco.achievements = allAchievements;
+    await db.saveEconomy(discordId, eco);
+    return [];
+  }
+
   const achieved = eco.achievements ?? [];
   const newOnes  = [];
   const conditions = {
@@ -378,6 +376,7 @@ async function checkAchievements(discordId, eco, user) {
     }
   };
   for (const ach of ACHIEVEMENTS) {
+    if (ach.id === 'owner_exclusive') continue;
     if (!achieved.includes(ach.id) && conditions[ach.id]?.()) {
       achieved.push(ach.id);
       newOnes.push(ach);
@@ -386,6 +385,8 @@ async function checkAchievements(discordId, eco, user) {
   if (newOnes.length) { eco.achievements = achieved; await db.saveEconomy(discordId, eco); }
   return newOnes;
 }
+
+// ... continuación de la Parte 1 ...
 
 async function recordGameHistory(discordId, gameName, placeId) {
   if (!gameName) return;
@@ -564,7 +565,7 @@ async function onGuildAdd(guild) {
     const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(guild.members.me)?.has('SendMessages'));
     if (!channel) return;
     channel.send({ embeds: [new EmbedBuilder()
-      .setTitle('👋 ¡Hola! Soy el Bot de Roblox v10.7')
+      .setTitle('👋 ¡Hola! Soy el Bot de Roblox v10.8')
       .setColor(0x1900ff)
       .setDescription('Gracias por añadirme. Aquí está la guía rápida:')
       .addFields(
@@ -576,7 +577,7 @@ async function onGuildAdd(guild) {
         { name: '6️⃣ Verificación',       value: 'Los usuarios usan `/verificar <username>`' },
         { name: '📋 Todos los comandos',  value: '`/ayuda`' },
       )
-      .setFooter({ text: 'Bot Roblox v10.7 · Usa /ayuda para ver todo' })] });
+      .setFooter({ text: 'Bot Roblox v10.8 · Usa /ayuda para ver todo' })] });
   } catch (e) { console.error('onGuildAdd:', e.message); }
 }
 
@@ -638,7 +639,7 @@ async function cmdConfirmar(ctx) {
   await db.saveUser(ctx.userId, {
     robloxId: pending.robloxId, robloxUsername: pending.robloxUsername,
     verifiedAt: new Date().toISOString(), privacyPresence: false, privacyProfile: true,
-    allowDMs: true, // por defecto permitir DMs
+    allowDMs: true,
   });
   const eco    = await db.getEconomy(ctx.userId) ?? { points: 0 };
   const user   = await db.getUser(ctx.userId);
@@ -704,7 +705,6 @@ async function cmdPerfil(ctx, targetUser) {
   const achList   = (eco?.achievements ?? []).map(id => ACHIEVEMENTS.find(a => a.id === id)?.name ?? '').filter(Boolean).join(' ');
   const createdAt = new Date(profile.created).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Color del perfil: el comprado por el usuario que ejecuta el comando, o el default #1900ff
   const userColor = entry.profileColor || 0x1900ff;
 
   const embed = new EmbedBuilder()
@@ -790,6 +790,8 @@ async function cmdPerfil(ctx, targetUser) {
   });
   collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
 }
+
+// ... continuación de la Parte 2 ...
 
 // ════════════════════════════════════════════════════════════
 //  COMANDOS DE PERFIL (continuación)
@@ -1002,30 +1004,6 @@ async function cmdRAP(ctx, targetUser) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  JUEGOS DE ROBLOX
-// ════════════════════════════════════════════════════════════
-
-async function cmdJuego(ctx, query) {
-  const clean = sanitizeText(query, 100);
-  if (!clean) return ctx.reply({ content: '❌ Uso: `/juego <nombre del juego>`', ephemeral: true });
-  const games = await roblox.searchGame(clean);
-  if (!games.length) return ctx.reply({ content: '❌ No encontré juegos con ese nombre en Roblox.', ephemeral: true });
-  const game = games[0];
-  const userEntry = await db.getUser(ctx.userId);
-  const userColor = userEntry?.profileColor || 0x1900ff;
-  ctx.reply({ embeds: [new EmbedBuilder()
-    .setTitle(`🎮 ${game.name}`)
-    .setURL(`https://www.roblox.com/games/${game.placeId}`)
-    .setColor(userColor)
-    .addFields(
-      { name: '👥 Jugando ahora', value: `${game.playerCount ?? 'N/A'}`, inline: true },
-      { name: '❤️ Likes',         value: `${game.totalUpVotes ?? 'N/A'}`, inline: true },
-      { name: '👎 Dislikes',      value: `${game.totalDownVotes ?? 'N/A'}`, inline: true },
-    )
-    .setFooter({ text: `ID del juego: ${game.placeId}` })] });
-}
-
-// ════════════════════════════════════════════════════════════
 //  HISTORIAL DE JUEGOS
 // ════════════════════════════════════════════════════════════
 
@@ -1142,6 +1120,7 @@ async function cmdRobloxStatus(ctx) {
       `**${i.name}** — ${i.status}`
     ).join('\n') });
   }
+  embed.addFields({ name: '🔗 Enlace directo', value: '[Ver estado en tiempo real](https://status.roblox.com)' });
   embed.setFooter({ text: 'Fuente: status.roblox.com' });
   ctx.reply({ embeds: [embed] });
 }
@@ -1361,7 +1340,6 @@ async function cmdComparar(ctx, targetUser1, targetUser2) {
 }
 
 async function cmdFlex(ctx) {
-  if (!await isPremium(ctx.userId)) return premiumEmbed(ctx);
   const entry = await db.getUser(ctx.userId);
   if (!entry) return ctx.reply({ content: '❌ Sin cuenta vinculada.', ephemeral: true });
   const [profile, avatarFull, friends, followers, groups, badges, presence, eco, bgUrl] = await Promise.all([
@@ -1388,7 +1366,7 @@ async function cmdFlex(ctx) {
       { name: '👣 Seguidores', value: `**${followers}**`,       inline: true },
       { name: '🏰 Grupos',     value: `**${groups.length}**`,   inline: true },
       { name: '🏅 Insignias',  value: `**${badges.length}+**`,  inline: true },
-      { name: '⭐ Premium',     value: 'Activo ✅',              inline: true },
+      { name: '⭐ Premium',     value: (await isPremium(ctx.userId)) ? 'Activo ✅' : 'No ❌', inline: true },
       { name: '\u200B',        value: '\u200B',                  inline: true },
     )
     .setURL(`https://www.roblox.com/users/${entry.robloxId}/profile`)
@@ -1505,6 +1483,10 @@ async function cmdDaily(ctx) {
     .setFooter({ text: `${rank.name} · Vuelve mañana para más puntos` });
   if (premium) embed.addFields({ name: '⭐ Bonus Premium', value: '¡x2 aplicado!' });
   if (newAchs.length) embed.addFields({ name: '🏅 Nuevos logros', value: newAchs.map(a => `**${a.name}** — ${a.desc}`).join('\n') });
+  
+  const gifUrl = await getAnimeGif('smile');
+  if (gifUrl) embed.setImage(gifUrl);
+  
   ctx.reply({ embeds: [embed] });
 }
 
@@ -1558,7 +1540,6 @@ async function cmdRob(ctx, targetUser) {
   if (!targetUser) return ctx.reply({ content: '❌ Menciona a un usuario.', ephemeral: true });
   if (targetUser.id === ctx.userId) return ctx.reply({ content: '❌ No puedes robarte a ti mismo.', ephemeral: true });
   
-  // Mensajes personalizados
   if (targetUser.id === process.env.BOT_OWNER_ID) {
     if (ctx.userId === '752391528475000933') {
       return ctx.reply({ content: '¿Como se atreve un simple femboy a morder la mano su alfa? 🥵', ephemeral: true });
@@ -1582,7 +1563,8 @@ async function cmdRob(ctx, targetUser) {
   
   if (targetEco.points < 50) return ctx.reply({ content: `❌ **${targetUser.username}** no tiene suficientes puntos para robar (mínimo 50).`, ephemeral: true });
 
-  const success = Math.random() < 0.4;
+  const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
+  const success = isOwner ? true : (Math.random() < 0.4);
   const maxRob = Math.min(200, Math.floor(targetEco.points * 0.2));
   const amount = Math.floor(Math.random() * maxRob) + 20;
 
@@ -1601,7 +1583,6 @@ async function cmdRob(ctx, targetUser) {
     if (gifUrl) embed.setImage(gifUrl);
     await ctx.reply({ embeds: [embed] });
     
-    // Check achievements after successful rob
     const user = await db.getUser(ctx.userId);
     await checkAchievements(ctx.userId, eco, user);
   } else {
@@ -1649,7 +1630,6 @@ async function cmdRob(ctx, targetUser) {
     });
     collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
     
-    // Check achievements after failed rob
     const user = await db.getUser(ctx.userId);
     await checkAchievements(ctx.userId, eco, user);
   }
@@ -1733,12 +1713,20 @@ const SHOP_ITEMS = [
 
 async function cmdTienda(ctx) {
   const userEntry = await db.getUser(ctx.userId);
+  const inventory = userEntry?.inventory ?? [];
+  const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle('🛒 Tienda de Puntos')
     .setColor(userColor)
-    .setDescription(SHOP_ITEMS.map(item => `**${item.name}** — \`${item.cost}\` pts\nID: \`${item.id}\``).join('\n\n'))
-    .setFooter({ text: 'Usa /comprar <id> para adquirir' });
+    .setDescription(
+      SHOP_ITEMS.map(item => {
+        const owned = inventory.includes(item.id) || isOwner;
+        const status = owned ? '✅' : '🔒';
+        return `${status} **${item.name}** — \`${item.cost}\` pts\nID: \`${item.id}\``;
+      }).join('\n\n')
+    )
+    .setFooter({ text: 'Usa /comprar <id> para adquirir. ✅ = Ya desbloqueado' });
   ctx.reply({ embeds: [embed] });
 }
 
@@ -1764,7 +1752,6 @@ async function cmdComprar(ctx, itemId) {
   await db.saveUser(ctx.userId, profile);
   if (!isOwner) await db.saveEconomy(ctx.userId, eco);
   
-  // Check achievements
   const user = await db.getUser(ctx.userId);
   await checkAchievements(ctx.userId, eco, user);
   
@@ -1842,6 +1829,92 @@ async function cmdTrivia(ctx, category) {
   });
 }
 
+// ── TRIVIA PERSONALIZADA ──────────────────────────────────────
+async function cmdTriviaCustom(ctx, subcommand, ...args) {
+  const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
+  
+  if (subcommand === 'add' && isOwner) {
+    const input = args.join(' ');
+    const parts = input.split('|');
+    if (parts.length < 2) return ctx.reply('❌ Formato: `/triviacustom add ¿Pregunta? | respuesta`');
+    const question = parts[0].trim();
+    const answer = parts[1].trim();
+    if (!question || !answer) return ctx.reply('❌ Pregunta y respuesta requeridas.');
+    
+    const questions = await redisGet('custom_trivia') || [];
+    questions.push({ q: question, a: answer, cat: 'Personalizada' });
+    await redisSet('custom_trivia', questions);
+    ctx.reply('✅ Pregunta personalizada añadida.');
+  } else if (subcommand === 'list') {
+    const questions = await redisGet('custom_trivia') || [];
+    if (!questions.length) return ctx.reply('No hay preguntas personalizadas.');
+    const userColor = (await db.getUser(ctx.userId))?.profileColor || 0x1900ff;
+    const embed = new EmbedBuilder()
+      .setTitle('📚 Preguntas Personalizadas')
+      .setColor(userColor)
+      .setDescription(questions.map((q, i) => `**${i+1}.** ${q.q}\n→ \`${q.a}\``).join('\n\n'))
+      .setFooter({ text: `${questions.length} preguntas` });
+    ctx.reply({ embeds: [embed] });
+  } else if (subcommand === 'play') {
+    const today = new Date().toISOString().slice(0,10);
+    const countKey = `trivia:custom:count:${ctx.userId}:${today}`;
+    const count = parseInt(await redisGet(countKey) || '0');
+    const isPremiumUser = await isPremium(ctx.userId);
+    const limit = isPremiumUser ? 15 : 5;
+    
+    if (count >= limit) {
+      return ctx.reply(`❌ Límite diario alcanzado (${limit} preguntas).`);
+    }
+    
+    const questions = await redisGet('custom_trivia') || [];
+    if (!questions.length) return ctx.reply('No hay preguntas personalizadas aún.');
+    
+    const question = questions[Math.floor(Math.random() * questions.length)];
+    const userColor = (await db.getUser(ctx.userId))?.profileColor || 0x1900ff;
+    const embed = new EmbedBuilder()
+      .setTitle('🎲 Trivia Personalizada')
+      .setDescription(`**${question.q}**`)
+      .setColor(userColor)
+      .setFooter({ text: `Escribe tu respuesta · 30 segundos · ${count+1}/${limit} hoy` });
+    
+    await ctx.reply({ embeds: [embed] });
+    
+    const filter = m => m.author.id === ctx.userId && !m.author.bot;
+    const collector = ctx.channel.createMessageCollector({ filter, time: 30000 });
+    let answered = false;
+    
+    collector.on('collect', async (m) => {
+      if (answered) return;
+      const userAnswer = m.content.trim().toLowerCase();
+      const correctAnswer = question.a.toLowerCase();
+      
+      if (userAnswer === correctAnswer) {
+        answered = true;
+        collector.stop('correct');
+        
+        await redisSet(countKey, count + 1);
+        await fetch(`${REDIS_URL}/expire/${countKey}/86400`, { headers: { Authorization: `Bearer ${REDIS_TOKEN}` } });
+        
+        const eco = await db.getEconomy(ctx.userId) ?? { points: 0, totalEarned: 0 };
+        const reward = 10;
+        eco.points = (eco.points ?? 0) + reward;
+        eco.totalEarned = (eco.totalEarned ?? 0) + reward;
+        await db.saveEconomy(ctx.userId, eco);
+        
+        await m.reply(`✅ ¡Correcto! +${reward} puntos. Saldo: **${eco.points}**`);
+      }
+    });
+    
+    collector.on('end', (collected, reason) => {
+      if (!answered) {
+        ctx.channel.send(`⏰ Tiempo agotado. La respuesta era: **${question.a}**`);
+      }
+    });
+  } else {
+    ctx.reply('❌ Subcomando no reconocido. Usa `add`, `list` o `play`.');
+  }
+}
+
 // ── CANALES DE VOZ AUTOMÁTICOS ────────────────────────────────
 async function cmdSetVoiceCategory(ctx, categoryId) {
   if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.ManageChannels))
@@ -1871,7 +1944,9 @@ async function cmdWhois(ctx, targetUser) {
 }
 
 async function cmdSyncAll(ctx) {
-  if (!await isPremium(ctx.userId)) return premiumEmbed(ctx);
+  if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.Administrator)) {
+    return ctx.reply({ content: '❌ Necesitas permiso de **Administrador** para usar este comando.', ephemeral: true });
+  }
   if (!ctx.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles))
     return ctx.reply({ content: '❌ El bot necesita el permiso **Gestionar Roles** en este servidor.', ephemeral: true });
   await ctx.reply('⏳ Sincronizando roles de todos los miembros verificados...');
@@ -2070,14 +2145,13 @@ const HELP_CATEGORIES = {
     description: 'Funciones exclusivas para supporters.',
     commands: [
       { name: '/premium', desc: 'Estado y opciones de compra.' },
-      { name: '/flex ⭐', desc: 'Tarjeta de perfil premium.' },
-      { name: '/comparar @u1 @u2 ⭐', desc: 'Compara dos cuentas.' },
-      { name: '/historial ⭐', desc: 'Historial de juegos.' },
-      { name: '/mistats ⭐', desc: 'Estadísticas de juego.' },
-      { name: '/addalt <usuario> ⭐', desc: 'Añadir cuenta alt.' },
-      { name: '/alts ⭐', desc: 'Ver alts vinculadas.' },
-      { name: '/setflexbg <url> ⭐', desc: 'Fondo personalizado para /flex.' },
-      { name: '/syncall ⭐', desc: 'Sincronizar todos los roles.' },
+      { name: '/flex', desc: 'Tarjeta de perfil exclusiva.' },
+      { name: '/comparar @u1 @u2', desc: 'Compara dos cuentas.' },
+      { name: '/historial', desc: 'Historial de juegos.' },
+      { name: '/mistats', desc: 'Estadísticas de juego.' },
+      { name: '/addalt <usuario>', desc: 'Añadir cuenta alt.' },
+      { name: '/alts', desc: 'Ver alts vinculadas.' },
+      { name: '/setflexbg <url>', desc: 'Fondo personalizado para /flex.' },
       { name: '/buy', desc: 'Comprar Premium con PayPal (7 o 30 días).' },
     ],
   },
@@ -2095,12 +2169,12 @@ const HELP_CATEGORIES = {
       { name: '!pay @usuario <cantidad>', desc: 'Transferir puntos.' },
       { name: '!coinflip <cantidad>', desc: 'Apuesta cara o cruz.' },
       { name: '/trivia', desc: 'Responde trivia (5 pts, límite diario).' },
+      { name: '/triviacustom', desc: 'Trivia con preguntas personalizadas.' },
     ],
   },
   '🎮 Roblox y búsquedas': {
     description: 'Busca juegos, catálogo y estado.',
     commands: [
-      { name: '/juego <nombre>', desc: 'Busca un juego.' },
       { name: '/catalogo <item>', desc: 'Busca items del catálogo.' },
       { name: '/murogrupo <ID>', desc: 'Muro de un grupo.' },
       { name: '/robloxstatus', desc: 'Estado de los servidores.' },
@@ -2128,6 +2202,7 @@ const HELP_CATEGORIES = {
     description: 'Herramientas para staff.',
     commands: [
       { name: '/whois @usuario', desc: 'Ver vinculación Discord-Roblox.' },
+      { name: '/syncall', desc: 'Sincronizar todos los roles (Admin).' },
     ],
   },
   '⚙️ Administración': {
@@ -2155,6 +2230,7 @@ const HELP_CATEGORIES = {
       { name: '/setpuntos @usuario <cantidad>', desc: 'Establece puntos.' },
       { name: '/addpuntos @usuario <cantidad>', desc: 'Añade puntos.' },
       { name: '/ownercolor <#HEX>', desc: 'Cambia el color de perfil del owner.' },
+      { name: '/cambiarcolor <id>', desc: 'Cambia de color usando ID de tienda.' },
     ],
   },
 };
@@ -2166,11 +2242,11 @@ async function cmdAyuda(ctx) {
   const categoryKeys = Object.keys(filteredCategories);
   
   const makeOverviewEmbed = () => new EmbedBuilder()
-    .setTitle('📋 Ayuda — Bot Roblox v10.7')
+    .setTitle('📋 Ayuda — Bot Roblox v10.8')
     .setColor(0x1900ff)
     .setDescription('Selecciona una categoría del menú de abajo para ver los comandos y sus descripciones.\n\nTodos los comandos funcionan con `/` (slash), `!` o `?`.')
     .addFields(...categoryKeys.map(k => ({ name: k, value: filteredCategories[k].description, inline: false })))
-    .setFooter({ text: `⭐ = requiere Premium · PayPal integrado · v10.7` });
+    .setFooter({ text: `⭐ = requiere Premium · PayPal integrado · v10.8` });
   
   const makeCategoryEmbed = (key) => {
     const cat = filteredCategories[key];
@@ -2259,7 +2335,20 @@ async function cmdOwnerColor(ctx, hexColor) {
   ctx.reply(`✅ Color de perfil cambiado a ${hexColor}.`);
 }
 
-// ── COMPRA PREMIUM CON PAYPAL (reemplaza Ko-fi) ───────────────
+async function cmdCambiarColor(ctx, colorId) {
+  if (ctx.userId !== process.env.BOT_OWNER_ID) return ctx.reply({ content: '❌ Solo el dueño del bot puede usar este comando.', ephemeral: true });
+  const item = SHOP_ITEMS.find(i => i.id === colorId && i.type === 'color');
+  if (!item) return ctx.reply({ content: '❌ ID de color inválido. Usa los IDs de `/tienda`.', ephemeral: true });
+  const entry = await db.getUser(ctx.userId);
+  if (!entry) return ctx.reply({ content: '❌ No tienes cuenta vinculada.', ephemeral: true });
+  entry.profileColor = item.value;
+  if (!entry.inventory) entry.inventory = [];
+  if (!entry.inventory.includes(item.id)) entry.inventory.push(item.id);
+  await db.saveUser(ctx.userId, entry);
+  ctx.reply({ content: `✅ Color cambiado a **${item.name}**.`, ephemeral: true });
+}
+
+// ── COMPRA PREMIUM CON PAYPAL ─────────────────────────────────
 async function cmdBuyPremium(ctx) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('buy_7d').setLabel('⭐ 7 días - $1.99').setStyle(ButtonStyle.Success),
@@ -2325,14 +2414,14 @@ module.exports = {
   // Historial
   cmdHistorial,
   // Roblox y catálogo
-  cmdJuego, cmdCatalogo, cmdMuroGrupo, cmdRobloxStatus,
+  cmdCatalogo, cmdMuroGrupo, cmdRobloxStatus,
   // LFG y Sugerencias
   cmdLFG, cmdSugerencia, cmdSetSuggestions,
   // Economía
   cmdPuntos, cmdDaily, cmdLogros, cmdCoinFlip, cmdPay, cmdRob,
   cmdTopLocal, cmdTopGlobal, cmdTienda, cmdComprar,
   // Trivia
-  cmdTrivia,
+  cmdTrivia, cmdTriviaCustom,
   // Moderación
   cmdWhois, cmdSyncAll,
   // Alertas y privacidad
@@ -2342,7 +2431,7 @@ module.exports = {
   cmdSetWelcome, cmdSetAlertChannel, cmdSetNickname, cmdSetLang, cmdSetPrefix,
   cmdSetVoiceCategory,
   // Owner exclusivos
-  cmdEncarcelar, cmdSetPuntos, cmdAddPuntos, cmdOwnerColor,
+  cmdEncarcelar, cmdSetPuntos, cmdAddPuntos, cmdOwnerColor, cmdCambiarColor,
   // Ayuda
   cmdAyuda,
   // Utilidades exportadas para bot.js
