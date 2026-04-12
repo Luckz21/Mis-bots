@@ -1,2 +1,0 @@
--# Mis-bots
-Bot de 
