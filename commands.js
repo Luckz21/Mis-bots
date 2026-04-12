@@ -650,17 +650,23 @@ async function cmdPerfil(ctx, targetUser) {
   embed.addFields({ name: '🏰 Grupos destacados', value: topGroups });
   embed.setFooter({ text: `${hasGold ? '⭐ Premium · ' : ''}Discord: ${target.username ?? ctx.username}` }).setTimestamp();
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`btn_avatar_${entry.robloxId}`).setLabel('🎭 Avatar').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`btn_estado_${entry.robloxId}`).setLabel('🎮 Estado').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`btn_grupos_${entry.robloxId}`).setLabel('🏰 Grupos').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`btn_insignias_${entry.robloxId}`).setLabel('🏅 Insignias').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`btn_sync_${entry.robloxId}`).setLabel('🔄 Sincronizar roles').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setLabel('🔗 Roblox').setStyle(ButtonStyle.Link).setURL(`https://www.roblox.com/users/${entry.robloxId}/profile`),
-  );
+  // Primera fila: botones interactivos (máximo 5)
+const row1 = new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setCustomId(`btn_avatar_${entry.robloxId}`).setLabel('🎭 Avatar').setStyle(ButtonStyle.Primary),
+  new ButtonBuilder().setCustomId(`btn_estado_${entry.robloxId}`).setLabel('🎮 Estado').setStyle(ButtonStyle.Success),
+  new ButtonBuilder().setCustomId(`btn_grupos_${entry.robloxId}`).setLabel('🏰 Grupos').setStyle(ButtonStyle.Secondary),
+  new ButtonBuilder().setCustomId(`btn_insignias_${entry.robloxId}`).setLabel('🏅 Insignias').setStyle(ButtonStyle.Secondary),
+  new ButtonBuilder().setCustomId(`btn_sync_${entry.robloxId}`).setLabel('🔄 Sincronizar roles').setStyle(ButtonStyle.Secondary),
+);
 
-  const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
-  if (!msg) return;
+// Segunda fila: botón de enlace a Roblox
+const row2 = new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setLabel('🔗 Ver en Roblox').setStyle(ButtonStyle.Link).setURL(`https://www.roblox.com/users/${entry.robloxId}/profile`),
+);
+
+const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row1, row2] });
+
+    if (!msg) return;
   const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 120000 });
   collector.on('collect', async (i) => {
     await i.deferUpdate().catch(() => {});
