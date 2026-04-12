@@ -88,9 +88,9 @@ async function onMemberJoin(member) {
 }
 
 async function onGuildAdd(guild) {
-  const { EmbedBuilder } = require('discord.js');
+  const { EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
   try {
-    const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(guild.members.me)?.has('SendMessages'));
+    const channel = guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages));
     if (!channel) return;
     channel.send({ embeds: [new EmbedBuilder()
       .setTitle('👋 ¡Hola! Soy el Bot de Roblox v10.8')
