@@ -1,5 +1,5 @@
 // ============================================================
-//  bot.js  —  v10.8 (FINAL CON API DE ESTADÍSTICAS)
+//  bot.js  —  v10.8 (MODULAR - ESTRUCTURA REFACTORIZADA)
 //  + Sirve archivos estáticos desde /public
 //  + Webhook PayPal funcional
 //  + Endpoint /api/stats para la página web
@@ -16,8 +16,9 @@ const {
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const cmd  = require('./commands.js');
-const { cooldowns, CooldownManager } = require('./security.js');
+
+// Importar desde la nueva estructura modular
+const cmd = require('./commands');
 
 const TOKEN      = process.env.DISCORD_TOKEN;
 const CLIENT_ID  = process.env.CLIENT_ID;
@@ -27,10 +28,12 @@ if (!TOKEN)     { console.error('❌ Falta DISCORD_TOKEN');  process.exit(1); }
 if (!CLIENT_ID) { console.error('❌ Falta CLIENT_ID');      process.exit(1); }
 if (!process.env.UPSTASH_REDIS_REST_URL) { console.error('❌ Falta Upstash'); process.exit(1); }
 
-// Funciones Redis para usar en el webhook y la API
+// Funciones Redis para usar en el webhook y la API (se mantienen aquí por simplicidad)
 async function redisGet(key) {
   try {
-    const res  = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/get/${encodeURIComponent(key)}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
+    const res = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/get/${encodeURIComponent(key)}`, { 
+      headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } 
+    });
     const data = await res.json();
     return data.result ? JSON.parse(data.result) : null;
   } catch (e) { console.error('redisGet:', e.message); return null; }
@@ -38,12 +41,16 @@ async function redisGet(key) {
 async function redisSet(key, value) {
   try {
     const encoded = encodeURIComponent(JSON.stringify(value));
-    await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/set/${encodeURIComponent(key)}/${encoded}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
+    await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/set/${encodeURIComponent(key)}/${encoded}`, { 
+      headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } 
+    });
   } catch (e) { console.error('redisSet:', e.message); }
 }
 async function redisDel(key) {
   try {
-    await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/del/${encodeURIComponent(key)}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
+    await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/del/${encodeURIComponent(key)}`, { 
+      headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } 
+    });
   } catch (e) { console.error('redisDel:', e.message); }
 }
 
@@ -52,8 +59,10 @@ const guildPrefixCache = new Map();
 async function getGuildPrefix(guildId) {
   if (guildPrefixCache.has(guildId)) return guildPrefixCache.get(guildId);
   try {
-    const res    = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/get/guild:${guildId}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
-    const data   = await res.json();
+    const res = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/get/guild:${guildId}`, { 
+      headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } 
+    });
+    const data = await res.json();
     const config = data.result ? JSON.parse(data.result) : {};
     const prefix = config.prefix ?? null;
     guildPrefixCache.set(guildId, prefix);
@@ -62,7 +71,7 @@ async function getGuildPrefix(guildId) {
   } catch { return null; }
 }
 
-// ── Slash commands (sin /juego, con nuevos comandos) ─────────
+// ── Slash commands ────────────────────────────────────────────
 const slashCommands = [
   // Verificación
   new SlashCommandBuilder().setName('verificar').setDescription('Vincula tu cuenta de Roblox con Discord').addStringOption(o => o.setName('usuario').setDescription('Tu nombre de usuario en Roblox').setRequired(true)),
@@ -71,7 +80,7 @@ const slashCommands = [
   new SlashCommandBuilder().setName('desvincular').setDescription('Desvincula tu cuenta de Roblox de este Discord'),
   new SlashCommandBuilder().setName('captcha').setDescription('Completa la verificación anti-bot antes de usar /verificar'),
   // Perfil
-  new SlashCommandBuilder().setName('perfil').setDescription('Muestra el perfil completo de Roblox con estadísticas').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional, por defecto tú)')),
+  new SlashCommandBuilder().setName('perfil').setDescription('Muestra el perfil completo de Roblox con estadísticas').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)')),
   new SlashCommandBuilder().setName('avatar').setDescription('Muestra el avatar de Roblox en tamaño grande').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)')),
   new SlashCommandBuilder().setName('estado').setDescription('Muestra si está conectado, jugando o desconectado en Roblox').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)')),
   new SlashCommandBuilder().setName('grupos').setDescription('Lista los grupos de Roblox con rol y rango').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)')),
@@ -202,15 +211,11 @@ function makeCtx(userId, username, guild, replyFn, fetchFn, channelId) {
 
 // ── Slash commands handler ────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
-  if (interaction.isAutocomplete()) {
-    return;
-  }
-
   if (!interaction.isChatInputCommand()) return;
 
-  const remaining = cooldowns.check(interaction.user.id, interaction.commandName);
+  const remaining = cmd.cooldowns.check(interaction.user.id, interaction.commandName);
   if (remaining !== null) {
-    const msg = remaining === -1 ? '⛔ Bloqueado temporalmente por spam. Intenta en 5 minutos.' : `⏳ Espera **${CooldownManager.formatTime(remaining)}** antes de usar este comando de nuevo.`;
+    const msg = remaining === -1 ? '⛔ Bloqueado temporalmente por spam. Intenta en 5 minutos.' : `⏳ Espera **${cmd.CooldownManager?.formatTime?.(remaining) || Math.ceil(remaining/1000) + 's'}** antes de usar este comando de nuevo.`;
     return interaction.reply({ content: msg, ephemeral: true });
   }
 
@@ -319,9 +324,9 @@ client.on('messageCreate', async (message) => {
   const args    = parts.slice(1);
   const users   = [...message.mentions.users.values()];
 
-  const remaining = cooldowns.check(message.author.id, cmdName);
+  const remaining = cmd.cooldowns.check(message.author.id, cmdName);
   if (remaining !== null) {
-    const msg = remaining === -1 ? '⛔ Bloqueado temporalmente.' : `⏳ Espera **${CooldownManager.formatTime(remaining)}**.`;
+    const msg = remaining === -1 ? '⛔ Bloqueado temporalmente.' : `⏳ Espera **${cmd.CooldownManager?.formatTime?.(remaining) || Math.ceil(remaining/1000) + 's'}**.`;
     return message.reply(msg);
   }
 
@@ -440,7 +445,6 @@ client.on('messageCreate', async (message) => {
       case 'addpuntos':           await cmd.cmdAddPuntos(ctx, users[0], parseInt(args[1])); break;
       case 'buy':                 await cmd.cmdBuyPremium(ctx); break;
     }
-    // Incrementar contador global de comandos
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
     await redisSet('total_commands_executed', totalCmds + 1);
   } catch (e) {
@@ -525,7 +529,7 @@ const server = http.createServer(async (req, res) => {
         const paymentStatus = params.get('payment_status');
         const itemName = params.get('item_name') || '';
         const mcGross = parseFloat(params.get('mc_gross') || '0');
-        const custom = params.get('custom'); // ID de Discord
+        const custom = params.get('custom');
         const txnId = params.get('txn_id');
 
         if (paymentStatus !== 'Completed') {
@@ -538,7 +542,6 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(200); res.end(); return;
         }
 
-        // Determinar días según el nombre del producto o monto
         let days;
         if (itemName.includes('30') || mcGross >= 4.99) days = 30;
         else if (itemName.includes('7') || mcGross >= 1.99) days = 7;
@@ -547,7 +550,6 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(200); res.end(); return;
         }
 
-        // Activar Premium
         const expDate = new Date(Date.now() + days * 86400000).toISOString();
         await redisSet(`premium:${custom}`, {
           activatedAt: new Date().toISOString(),
@@ -580,7 +582,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Si no es archivo estático, API, health o webhook, devolver 404
   res.writeHead(404);
   res.end();
 });
