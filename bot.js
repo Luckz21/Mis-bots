@@ -1,9 +1,9 @@
 // ============================================================
-//  bot.js  —  v10.8 (FINAL COMPLETO)
+//  bot.js  —  v10.8 (FINAL CON API DE ESTADÍSTICAS)
 //  + Sirve archivos estáticos desde /public
 //  + Webhook PayPal funcional
-//  + Comandos slash actualizados (sin /juego)
-//  + Health check para Railway
+//  + Endpoint /api/stats para la página web
+//  + Contadores de usuarios verificados y comandos ejecutados
 // ============================================================
 
 const {
@@ -27,7 +27,7 @@ if (!TOKEN)     { console.error('❌ Falta DISCORD_TOKEN');  process.exit(1); }
 if (!CLIENT_ID) { console.error('❌ Falta CLIENT_ID');      process.exit(1); }
 if (!process.env.UPSTASH_REDIS_REST_URL) { console.error('❌ Falta Upstash'); process.exit(1); }
 
-// Funciones Redis para usar en el webhook
+// Funciones Redis para usar en el webhook y la API
 async function redisGet(key) {
   try {
     const res  = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/get/${encodeURIComponent(key)}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
@@ -203,7 +203,6 @@ function makeCtx(userId, username, guild, replyFn, fetchFn, channelId) {
 // ── Slash commands handler ────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isAutocomplete()) {
-    // No hay autocomplete ya que eliminamos /juego
     return;
   }
 
@@ -298,6 +297,9 @@ client.on('interactionCreate', async (interaction) => {
       case 'cambiarcolor':     await cmd.cmdCambiarColor(ctx, interaction.options.getString('id')); break;
       case 'buy':              await cmd.cmdBuyPremium(ctx); break;
     }
+    // Incrementar contador global de comandos
+    const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
+    await redisSet('total_commands_executed', totalCmds + 1);
   } catch (e) {
     console.error(`Error en /${interaction.commandName}:`, e);
     ctx.reply('❌ Error inesperado. Intenta de nuevo.').catch(() => {});
@@ -438,6 +440,9 @@ client.on('messageCreate', async (message) => {
       case 'addpuntos':           await cmd.cmdAddPuntos(ctx, users[0], parseInt(args[1])); break;
       case 'buy':                 await cmd.cmdBuyPremium(ctx); break;
     }
+    // Incrementar contador global de comandos
+    const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
+    await redisSet('total_commands_executed', totalCmds + 1);
   } catch (e) {
     console.error(`Error en ${prefix}${cmdName}:`, e);
     message.reply('❌ Error inesperado. Intenta de nuevo.');
@@ -448,10 +453,10 @@ client.on('messageCreate', async (message) => {
 client.on('guildMemberAdd', (member) => cmd.onMemberJoin(member).catch(console.error));
 client.on('guildCreate',    (guild)  => cmd.onGuildAdd(guild).catch(console.error));
 
-// ── Servidor HTTP (Página web + Webhook PayPal + Health Check) ─
+// ── Servidor HTTP (Página web + API + Webhook PayPal + Health Check) ─
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  
+
   // Servir archivos estáticos desde /public
   if (req.method === 'GET') {
     let filePath = path.join(__dirname, 'public', url.pathname === '/' ? 'index.html' : url.pathname);
@@ -469,12 +474,38 @@ const server = http.createServer(async (req, res) => {
           '.svg': 'image/svg+xml',
           '.ico': 'image/x-icon'
         }[ext] || 'application/octet-stream';
-        
+
         res.writeHead(200, { 'Content-Type': contentType });
         fs.createReadStream(filePath).pipe(res);
         return;
       }
     } catch (e) {}
+  }
+
+  // Endpoint de estadísticas para la página web
+  if (req.method === 'GET' && url.pathname === '/api/stats') {
+    try {
+      const premiumList = await redisGet('premium_users_list') || [];
+      const totalUsers = parseInt(await redisGet('total_verified_users') || '0');
+      const totalCommands = parseInt(await redisGet('total_commands_executed') || '0');
+      const serverCount = client.guilds.cache.size;
+
+      const stats = {
+        servers: serverCount,
+        users: totalUsers,
+        commands: totalCommands,
+        premium: premiumList.length
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(stats));
+      return;
+    } catch (e) {
+      console.error('Error en /api/stats:', e);
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: 'Error interno' }));
+      return;
+    }
   }
 
   // Health check para Railway
@@ -549,7 +580,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Si no es archivo estático ni webhook, devolver 404
+  // Si no es archivo estático, API, health o webhook, devolver 404
   res.writeHead(404);
   res.end();
 });
