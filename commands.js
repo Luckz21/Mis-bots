@@ -1,7 +1,10 @@
 // ============================================================
 //  commands.js  —  v10.6  (FINAL CORREGIDO)
-//  + Alertas con reset diario 20:00 RD
-//  + Barra gráfica de Premium en perfil
+//  + Color de perfil funcional
+//  + Encarcelamiento con fianza
+//  + Trivia 5 pts y límite diario (10 free / 30 premium)
+//  + Owner commands
+//  + Compra Premium con código
 // ============================================================
 
 const {
@@ -70,6 +73,13 @@ const db = {
   getGameStats:   (id)       => redisGet(`gamestats:${id}`),
   saveGameStats:  (id, data) => redisSet(`gamestats:${id}`, data),
 };
+
+// ── Función helper para encarcelamiento ───────────────────────
+async function isJailed(userId) {
+  const jailed = await redisGet(`jailed:${userId}`);
+  if (!jailed) return false;
+  return new Date(jailed.until) > new Date();
+}
 
 // ── Roblox API con caché ──────────────────────────────────────
 const ROBLOX_COOKIE = process.env.ROBLOX_COOKIE;
@@ -617,7 +627,8 @@ async function cmdPerfil(ctx, targetUser) {
   const embed = new EmbedBuilder()
     .setTitle(`${hasGold ? '⭐ ' : ''}${profile.displayName}  ·  @${profile.name}`)
     .setURL(`https://www.roblox.com/users/${entry.robloxId}/profile`)
-    .setColor(hasGold ? 0xFFD700 : rank.color).setThumbnail(avatarUrl)
+    .setColor(entry.profileColor || (hasGold ? 0xFFD700 : rank.color))
+    .setThumbnail(avatarUrl)
     .setDescription((profile.description?.slice(0, 150) || '*Sin descripción*') + (hasPremiumRoblox ? '\n💎 **Roblox Premium**' : ''))
     .addFields(
       { name: '━━━━━━━━━━━━━━━━━━━━', value: '\u200B' },
@@ -650,23 +661,20 @@ async function cmdPerfil(ctx, targetUser) {
   embed.addFields({ name: '🏰 Grupos destacados', value: topGroups });
   embed.setFooter({ text: `${hasGold ? '⭐ Premium · ' : ''}Discord: ${target.username ?? ctx.username}` }).setTimestamp();
 
-  // Primera fila: botones interactivos (máximo 5)
-const row1 = new ActionRowBuilder().addComponents(
-  new ButtonBuilder().setCustomId(`btn_avatar_${entry.robloxId}`).setLabel('🎭 Avatar').setStyle(ButtonStyle.Primary),
-  new ButtonBuilder().setCustomId(`btn_estado_${entry.robloxId}`).setLabel('🎮 Estado').setStyle(ButtonStyle.Success),
-  new ButtonBuilder().setCustomId(`btn_grupos_${entry.robloxId}`).setLabel('🏰 Grupos').setStyle(ButtonStyle.Secondary),
-  new ButtonBuilder().setCustomId(`btn_insignias_${entry.robloxId}`).setLabel('🏅 Insignias').setStyle(ButtonStyle.Secondary),
-  new ButtonBuilder().setCustomId(`btn_sync_${entry.robloxId}`).setLabel('🔄 Sincronizar roles').setStyle(ButtonStyle.Secondary),
-);
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`btn_avatar_${entry.robloxId}`).setLabel('🎭 Avatar').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`btn_estado_${entry.robloxId}`).setLabel('🎮 Estado').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`btn_grupos_${entry.robloxId}`).setLabel('🏰 Grupos').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`btn_insignias_${entry.robloxId}`).setLabel('🏅 Insignias').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`btn_sync_${entry.robloxId}`).setLabel('🔄 Sincronizar roles').setStyle(ButtonStyle.Secondary),
+  );
 
-// Segunda fila: botón de enlace a Roblox
-const row2 = new ActionRowBuilder().addComponents(
-  new ButtonBuilder().setLabel('🔗 Ver en Roblox').setStyle(ButtonStyle.Link).setURL(`https://www.roblox.com/users/${entry.robloxId}/profile`),
-);
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setLabel('🔗 Ver en Roblox').setStyle(ButtonStyle.Link).setURL(`https://www.roblox.com/users/${entry.robloxId}/profile`),
+  );
 
-const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row1, row2] });
-
-    if (!msg) return;
+  const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row1, row2] });
+  if (!msg) return;
   const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 120000 });
   collector.on('collect', async (i) => {
     await i.deferUpdate().catch(() => {});
@@ -699,6 +707,10 @@ const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row1, row2] 
   });
   collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
 }
+
+// ════════════════════════════════════════════════════════════
+//  COMANDOS DE PERFIL (continuación)
+// ════════════════════════════════════════════════════════════
 
 async function cmdAvatar(ctx, targetUser) {
   const target = targetUser ?? { id: ctx.userId, username: ctx.username };
@@ -1196,13 +1208,11 @@ async function cmdActivarPremium(ctx, targetId, dias) {
   if (!targetId) return ctx.reply({ content: '❌ Debes proporcionar el Discord ID del usuario.', ephemeral: true });
   const expDate = dias ? new Date(Date.now() + dias * 86400000).toISOString() : null;
   await db.savePremium(targetId, { activatedAt: new Date().toISOString(), expiresAt: expDate, activatedBy: ctx.userId, durationDays: dias ?? null });
-  // Agregar a lista de usuarios premium para auto-daily
   const premiumList = await redisGet('premium_users_list') ?? [];
   if (!premiumList.includes(targetId)) { premiumList.push(targetId); await redisSet('premium_users_list', premiumList); }
   ctx.reply({ content: `✅ Premium activado para <@${targetId}>${dias ? ` por **${dias} días**` : ' **permanentemente**'}.` });
 }
 
-// Solo el dueño del bot puede desactivar Premium (a cualquier usuario o a sí mismo)
 async function cmdDesactivarPremium(ctx, targetId) {
   if (ctx.userId !== process.env.BOT_OWNER_ID)
     return ctx.reply({ content: t(await getGuildLang(ctx.guild?.id), 'owner_only'), ephemeral: true });
@@ -1211,10 +1221,7 @@ async function cmdDesactivarPremium(ctx, targetId) {
   const existing = await db.getPremium(targetId);
   if (!existing) return ctx.reply({ content: `❌ El usuario <@${targetId}> no tiene Premium activo.`, ephemeral: true });
 
-  // Eliminar de Redis
   await redisDel(`premium:${targetId}`);
-
-  // Eliminar de la lista de auto-daily
   const premiumList = await redisGet('premium_users_list') ?? [];
   const newList = premiumList.filter(id => id !== targetId);
   await redisSet('premium_users_list', newList);
@@ -1435,22 +1442,67 @@ async function cmdPay(ctx, targetUser, amountStr) {
 async function cmdRob(ctx, targetUser) {
   if (!targetUser) return ctx.reply({ content: '❌ Menciona a un usuario.', ephemeral: true });
   if (targetUser.id === ctx.userId) return ctx.reply({ content: '❌ No puedes robarte a ti mismo.', ephemeral: true });
+  
+  if (ctx.userId === process.env.BOT_OWNER_ID) return ctx.reply({ content: '👑 El dueño no necesita robar.', ephemeral: true });
+  if (targetUser.id === process.env.BOT_OWNER_ID) return ctx.reply({ content: '❌ No puedes robar al dueño del bot.', ephemeral: true });
+
+  if (await isJailed(ctx.userId)) {
+    const jailed = await redisGet(`jailed:${ctx.userId}`);
+    const mins = Math.ceil((new Date(jailed.until) - new Date()) / 60000);
+    return ctx.reply({ content: `🚔 Estás encarcelado por **${mins} minutos**. Usa el botón de "Pagar fianza" del mensaje donde fallaste el robo.`, ephemeral: true });
+  }
+  
+  if (await isJailed(targetUser.id)) {
+    return ctx.reply({ content: `❌ No puedes robar a **${targetUser.username}** porque está bajo protección carcelaria.`, ephemeral: true });
+  }
+
   const eco = await db.getEconomy(ctx.userId) ?? { points: 0 };
   const targetEco = await db.getEconomy(targetUser.id) ?? { points: 0 };
+  
   if (targetEco.points < 50) return ctx.reply({ content: `❌ **${targetUser.username}** no tiene suficientes puntos para robar (mínimo 50).`, ephemeral: true });
+
   const success = Math.random() < 0.4;
   const maxRob = Math.min(200, Math.floor(targetEco.points * 0.2));
   const amount = Math.floor(Math.random() * maxRob) + 20;
+
   if (success) {
     targetEco.points -= amount;
     eco.points += amount;
     await Promise.all([db.saveEconomy(ctx.userId, eco), db.saveEconomy(targetUser.id, targetEco)]);
-    ctx.reply({ embeds: [new EmbedBuilder().setTitle('🦹 ¡Robo exitoso!').setColor(0x57F287).setDescription(`Robaste **${amount}** puntos a **${targetUser.username}**.`)] });
+    await ctx.reply({ embeds: [new EmbedBuilder().setTitle('🦹 ¡Robo exitoso!').setColor(0x57F287).setDescription(`Robaste **${amount}** puntos a **${targetUser.username}**.`)] });
   } else {
     const fine = Math.min(100, eco.points);
     eco.points -= fine;
     await db.saveEconomy(ctx.userId, eco);
-    ctx.reply({ embeds: [new EmbedBuilder().setTitle('🚔 ¡Robo fallido!').setColor(0xED4245).setDescription(`Fallaste y pagaste una multa de **${fine}** puntos.`)] });
+    
+    const until = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await redisSet(`jailed:${ctx.userId}`, { until, reason: 'robo_fallido' });
+    
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('pay_bail').setLabel('💰 Pagar fianza (200 monedas)').setStyle(ButtonStyle.Primary),
+    );
+    const embed = new EmbedBuilder()
+      .setTitle('🚔 ¡Robo fallido!')
+      .setColor(0xED4245)
+      .setDescription(`Fallaste al robar a **${targetUser.username}**.\nMulta: **${fine}** monedas.\nEstás **encarcelado por 1 hora**.\n\nPuedes pagar 200 monedas para salir inmediatamente.`);
+    
+    const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
+    if (!msg) return;
+    
+    const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 3600000 });
+    collector.on('collect', async (i) => {
+      if (i.user.id !== ctx.userId) return i.reply({ content: '❌ Solo el encarcelado puede pagar la fianza.', ephemeral: true });
+      const userEco = await db.getEconomy(ctx.userId) ?? { points: 0 };
+      if (userEco.points < 200) {
+        return i.reply({ content: `❌ Necesitas 200 monedas. Tienes ${userEco.points}.`, ephemeral: true });
+      }
+      userEco.points -= 200;
+      await db.saveEconomy(ctx.userId, userEco);
+      await redisDel(`jailed:${ctx.userId}`);
+      await i.update({ embeds: [embed.setFooter({ text: '✅ Fianza pagada. Estás libre.' }).setColor(0x57F287)], components: [] });
+      collector.stop();
+    });
+    collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
   }
 }
 
@@ -1511,27 +1563,41 @@ async function cmdTienda(ctx) {
 async function cmdComprar(ctx, itemId) {
   const item = SHOP_ITEMS.find(i => i.id === itemId);
   if (!item) return ctx.reply({ content: '❌ Item no encontrado. Usa /tienda para ver.', ephemeral: true });
+  
+  const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const eco = await db.getEconomy(ctx.userId) ?? { points: 0 };
-  if (eco.points < item.cost) return ctx.reply({ content: `❌ Necesitas ${item.cost} puntos. Tienes ${eco.points}.`, ephemeral: true });
-  eco.points -= item.cost;
+  
+  if (!isOwner && eco.points < item.cost) return ctx.reply({ content: `❌ Necesitas ${item.cost} puntos. Tienes ${eco.points}.`, ephemeral: true });
+  
+  if (!isOwner) eco.points -= item.cost;
   const profile = await db.getUser(ctx.userId) ?? {};
   if (!profile.inventory) profile.inventory = [];
   if (profile.inventory.includes(item.id)) return ctx.reply({ content: '❌ Ya tienes este item.', ephemeral: true });
   profile.inventory.push(item.id);
   if (item.type === 'color') profile.profileColor = item.value;
   await db.saveUser(ctx.userId, profile);
-  await db.saveEconomy(ctx.userId, eco);
-  ctx.reply({ content: `✅ Compraste **${item.name}** por ${item.cost} puntos.`, ephemeral: true });
+  if (!isOwner) await db.saveEconomy(ctx.userId, eco);
+  ctx.reply({ content: isOwner ? `👑 Como dueño, recibiste **${item.name}** gratis.` : `✅ Compraste **${item.name}** por ${item.cost} puntos.`, ephemeral: true });
 }
 
-// ── TRIVIA ────────────────────────────────────────────────────
-// Trivia questions loaded from trivia.js
+// ── TRIVIA (con límite diario) ─────────────────────────────────
 const { getRandomQuestion: _getRandomQ, checkAnswer: _checkAnswer, CATEGORIES: _TRIVIA_CATS } = require('./trivia.js');
 
 async function cmdTrivia(ctx, category) {
   const lang = await getGuildLang(ctx.guild?.id);
+  const channel = ctx.channel;
+  if (!channel) return ctx.reply({ content: '❌ Este comando solo funciona en canales de texto.', ephemeral: true });
 
-  // Si se especificó categoría, filtrar; sino random de todas
+  const today = new Date().toISOString().slice(0,10);
+  const countKey = `trivia:count:${ctx.userId}:${today}`;
+  const count = parseInt(await redisGet(countKey) || '0');
+  const isPremiumUser = await isPremium(ctx.userId);
+  const limit = isPremiumUser ? 30 : 10;
+  
+  if (count >= limit) {
+    return ctx.reply({ content: `❌ Has alcanzado el límite diario de trivia (${limit} preguntas). Vuelve mañana o hazte Premium para 30.`, ephemeral: true });
+  }
+
   let question;
   if (category && _TRIVIA_CATS.includes(category)) {
     const { getQuestionByCategory } = require('./trivia.js');
@@ -1541,18 +1607,13 @@ async function cmdTrivia(ctx, category) {
   }
 
   const catEmoji = { Roblox: '🎮', Matemáticas: '🔢', Ciencias: '🔬', Historia: '📜', Geografía: '🌍', Tecnología: '💻', General: '🎯' };
-
   const embed = new EmbedBuilder()
     .setTitle(`${catEmoji[question.cat] ?? '🎲'} Trivia — ${question.cat}`)
     .setDescription(`**${question.q}**`)
     .setColor(0x00B0F4)
-    .setFooter({ text: 'Escribe tu respuesta en el chat · 30 segundos' });
+    .setFooter({ text: `Escribe tu respuesta · 30 segundos · ${count + 1}/${limit} hoy` });
 
   await ctx.reply({ embeds: [embed] });
-
-  // Necesitamos el canal para crear el collector de mensajes
-  const channel = ctx.channel;
-  if (!channel) return ctx.reply({ content: '❌ Este comando solo funciona en canales de texto.', ephemeral: true });
 
   const filter = m => m.author.id !== (ctx.clientUserId ?? '') && !m.author.bot;
   const collector = channel.createMessageCollector({ filter, time: 30000 });
@@ -1563,12 +1624,18 @@ async function cmdTrivia(ctx, category) {
     if (_checkAnswer(m.content, question.a)) {
       answered = true;
       collector.stop('answered');
+      
+      await redisSet(countKey, count + 1);
+      await fetch(`${REDIS_URL}/expire/${countKey}/86400`, { headers: { Authorization: `Bearer ${REDIS_TOKEN}` } });
+      
       const eco = await db.getEconomy(m.author.id) ?? { points: 0, totalEarned: 0 };
-      eco.points      = (eco.points ?? 0) + 50;
-      eco.totalEarned = (eco.totalEarned ?? 0) + 50;
-      eco.triviaWins  = (eco.triviaWins ?? 0) + 1;
+      const reward = 5;
+      eco.points = (eco.points ?? 0) + reward;
+      eco.totalEarned = (eco.totalEarned ?? 0) + reward;
+      eco.triviaWins = (eco.triviaWins ?? 0) + 1;
       await db.saveEconomy(m.author.id, eco);
-      await m.reply(`✅ ¡Correcto! La respuesta era **${question.a}**\n🎁 <@${m.author.id}> gana **+50 puntos**! Saldo: **${eco.points}**`);
+      
+      await m.reply(`✅ ¡Correcto! La respuesta era **${question.a}**\n🎁 <@${m.author.id}> gana **+${reward} puntos**! Saldo: **${eco.points}**\n📊 ${count + 1}/${limit} preguntas hoy.`);
     }
   });
 
@@ -1825,7 +1892,7 @@ const HELP_CATEGORIES = {
       { name: '/rob @usuario', desc: 'Intentar robar puntos.' },
       { name: '!pay @usuario <cantidad>', desc: 'Transferir puntos.' },
       { name: '!coinflip <cantidad>', desc: 'Apuesta cara o cruz.' },
-      { name: '/trivia', desc: 'Responde trivia de Roblox.' },
+      { name: '/trivia', desc: 'Responde trivia (5 pts, límite diario).' },
     ],
   },
   '🎮 Roblox y búsquedas': {
@@ -1876,6 +1943,18 @@ const HELP_CATEGORIES = {
       { name: '/setprefix <prefijo>', desc: 'Prefijo para comandos de texto.' },
     ],
   },
+  '👑 Owner': {
+    description: 'Comandos exclusivos del dueño del bot.',
+    commands: [
+      { name: '/activarpremium <id> [días]', desc: 'Activar Premium manualmente.' },
+      { name: '/desactivarpremium <id>', desc: 'Desactivar Premium.' },
+      { name: '/encarcelar @usuario [horas]', desc: 'Encarcela a un usuario.' },
+      { name: '/setpuntos @usuario <cantidad>', desc: 'Establece puntos.' },
+      { name: '/addpuntos @usuario <cantidad>', desc: 'Añade puntos.' },
+      { name: '/ownercolor <#HEX>', desc: 'Cambia el color de perfil del owner.' },
+      { name: '/buy', desc: 'Comprar Premium con código (para usuarios).' },
+    ],
+  },
 };
 
 async function cmdAyuda(ctx) {
@@ -1913,8 +1992,103 @@ async function cmdAyuda(ctx) {
   collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
 }
 
-// ── Exportaciones ─────────────────────────────────────────────
-// ... (todo el código anterior de commands.js permanece igual) ...
+// ════════════════════════════════════════════════════════════
+//  COMANDOS EXCLUSIVOS DEL DUEÑO (OWNER)
+// ════════════════════════════════════════════════════════════
+
+async function cmdEncarcelar(ctx, targetUser, horas = 1) {
+  if (ctx.userId !== process.env.BOT_OWNER_ID) return ctx.reply({ content: '❌ Solo el dueño del bot.', ephemeral: true });
+  const until = new Date(Date.now() + horas * 3600000).toISOString();
+  await redisSet(`jailed:${targetUser.id}`, { until, reason: 'owner_action' });
+  ctx.reply(`🔒 **${targetUser.username}** ha sido encarcelado por ${horas} hora(s).`);
+}
+
+async function cmdSetPuntos(ctx, targetUser, cantidad) {
+  if (ctx.userId !== process.env.BOT_OWNER_ID) return ctx.reply({ content: '❌ Solo el dueño.', ephemeral: true });
+  if (cantidad < 0) return ctx.reply({ content: '❌ La cantidad no puede ser negativa.', ephemeral: true });
+  const eco = await db.getEconomy(targetUser.id) ?? { points: 0, totalEarned: 0 };
+  eco.points = cantidad;
+  await db.saveEconomy(targetUser.id, eco);
+  ctx.reply(`✅ Puntos de **${targetUser.username}** establecidos a ${cantidad}.`);
+}
+
+async function cmdAddPuntos(ctx, targetUser, cantidad) {
+  if (ctx.userId !== process.env.BOT_OWNER_ID) return ctx.reply({ content: '❌ Solo el dueño.', ephemeral: true });
+  const eco = await db.getEconomy(targetUser.id) ?? { points: 0, totalEarned: 0 };
+  eco.points = (eco.points ?? 0) + cantidad;
+  eco.totalEarned = (eco.totalEarned ?? 0) + cantidad;
+  await db.saveEconomy(targetUser.id, eco);
+  ctx.reply(`✅ Se añadieron ${cantidad} puntos a **${targetUser.username}**. Ahora tiene ${eco.points}.`);
+}
+
+async function cmdOwnerColor(ctx, hexColor) {
+  if (ctx.userId !== process.env.BOT_OWNER_ID) return ctx.reply({ content: '❌ Solo el dueño.', ephemeral: true });
+  const entry = await db.getUser(ctx.userId);
+  if (!entry) return ctx.reply('❌ Sin cuenta vinculada.');
+  if (!/^#[0-9A-F]{6}$/i.test(hexColor)) return ctx.reply('❌ Formato inválido. Usa #RRGGBB.');
+  const colorInt = parseInt(hexColor.slice(1), 16);
+  entry.profileColor = colorInt;
+  await db.saveUser(ctx.userId, entry);
+  ctx.reply(`✅ Color de perfil cambiado a ${hexColor}.`);
+}
+
+// ════════════════════════════════════════════════════════════
+//  COMPRA PREMIUM CON CÓDIGO (KO‑FI)
+// ════════════════════════════════════════════════════════════
+
+async function cmdBuyPremium(ctx) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('buy_2d').setLabel('🌟 2 días - $0.99').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('buy_7d').setLabel('⭐ 7 días - $4.99').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('buy_30d').setLabel('💎 30 días - $8.99').setStyle(ButtonStyle.Danger),
+  );
+  
+  const embed = new EmbedBuilder()
+    .setTitle('🛒 Comprar Premium')
+    .setColor(0xFFD700)
+    .setDescription('Selecciona el plan que deseas adquirir.\n\n**Importante:** Al hacer clic, se generará un código que **debes copiar y pegar en el mensaje de tu donación en Ko‑fi**. Así el sistema activará tu Premium automáticamente.')
+    .setFooter({ text: 'El código expira en 5 minutos' });
+  
+  const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
+  if (!msg) return;
+  
+  const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
+  collector.on('collect', async (i) => {
+    if (i.user.id !== ctx.userId) return i.reply({ content: '❌ Solo quien ejecutó el comando.', ephemeral: true });
+    
+    let days, planName, emoji;
+    if (i.customId === 'buy_2d') { days = 2; planName = '2 días'; emoji = '🌟'; }
+    else if (i.customId === 'buy_7d') { days = 7; planName = '7 días'; emoji = '⭐'; }
+    else { days = 30; planName = '30 días'; emoji = '💎'; }
+    
+    const code = 'PREMIUM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const expires = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    
+    await redisSet(`pending_premium:${code}`, {
+      userId: ctx.userId,
+      plan: days,
+      planName: planName,
+      expires: expires
+    });
+    
+    const kofiLink = `https://ko-fi.com/${process.env.KOFI_PAGE ?? 'tu_pagina'}`;
+    const newEmbed = new EmbedBuilder()
+      .setTitle(`${emoji} Código generado — Plan ${planName}`)
+      .setColor(0x57F287)
+      .setDescription(
+        `**1️⃣ Copia este código:**\n\`\`\`${code}\`\`\`\n` +
+        `**2️⃣** Ve a Ko‑fi y realiza tu donación de **$${days === 2 ? '0.99' : days === 7 ? '4.99' : '8.99'}**.\n` +
+        `**3️⃣** En el mensaje de la donación, **pega el código**.\n\n` +
+        `**[👉 Ir a Ko‑fi ahora](${kofiLink})**\n\n` +
+        `⏰ El código expira en 5 minutos. Si no se usa, deberás generar uno nuevo.`
+      )
+      .setFooter({ text: 'Premium se activará automáticamente tras la donación' });
+    
+    await i.update({ embeds: [newEmbed], components: [] });
+  });
+  
+  collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
+}
 
 // ── Exportaciones ─────────────────────────────────────────────
 module.exports = {
@@ -1924,7 +2098,7 @@ module.exports = {
   cmdPerfil, cmdAvatar, cmdEstado, cmdGrupos, cmdAmigos, cmdInsignias,
   cmdHistorialNombres, cmdBuscar, cmdWhoisRoblox, cmdOutfit, cmdRAP,
   // Premium
-  cmdPremiumStatus, cmdActivarPremium, cmdDesactivarPremium, // <-- AÑADIDO
+  cmdPremiumStatus, cmdActivarPremium, cmdDesactivarPremium, cmdBuyPremium,
   cmdComparar, cmdFlex, cmdMiStats,
   cmdAddAlt, cmdAlts, cmdSetFlexBg,
   // Historial
@@ -1946,6 +2120,8 @@ module.exports = {
   cmdSetVerifiedRole, cmdSetPremiumRole, cmdBindRole, cmdUnbindRole, cmdListRoles,
   cmdSetWelcome, cmdSetAlertChannel, cmdSetNickname, cmdSetLang, cmdSetPrefix,
   cmdSetVoiceCategory,
+  // Owner exclusivos
+  cmdEncarcelar, cmdSetPuntos, cmdAddPuntos, cmdOwnerColor,
   // Ayuda
   cmdAyuda,
   // Utilidades exportadas para bot.js
