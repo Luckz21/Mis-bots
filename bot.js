@@ -1,7 +1,8 @@
 // ============================================================
-//  bot.js  —  v10.6 (EXPANDED) - Railway Ready
-//  + Comandos owner, buy, encarcelar, setpuntos, etc.
-//  + Webhook Ko‑fi con soporte de códigos PREMIUM-XXXXXX
+//  bot.js  —  v10.7 (MEJORAS MASIVAS)
+//  + PayPal integrado (reemplaza Ko-fi)
+//  + Nuevos comandos: /dms, /buy mejorado
+//  + Colores dinámicos en todos los embeds
 // ============================================================
 
 const {
@@ -17,7 +18,6 @@ const { cooldowns, CooldownManager } = require('./security.js');
 
 const TOKEN      = process.env.DISCORD_TOKEN;
 const CLIENT_ID  = process.env.CLIENT_ID;
-const KOFI_TOKEN = process.env.KOFI_TOKEN;
 const DEFAULT_PREFIXES = ['!', '?'];
 
 if (!TOKEN)     { console.error('❌ Falta DISCORD_TOKEN');  process.exit(1); }
@@ -59,7 +59,7 @@ async function getGuildPrefix(guildId) {
   } catch { return null; }
 }
 
-// ── Slash commands (actualizados con nuevos comandos owner y buy) ──
+// ── Slash commands (actualizados) ─────────────────────────────
 const slashCommands = [
   // Verificación
   new SlashCommandBuilder().setName('verificar').setDescription('Vincula tu cuenta de Roblox con Discord').addStringOption(o => o.setName('usuario').setDescription('Tu nombre de usuario en Roblox').setRequired(true)),
@@ -104,12 +104,12 @@ const slashCommands = [
   new SlashCommandBuilder().setName('logros').setDescription('Ver logros desbloqueados').addUserOption(o => o.setName('usuario').setDescription('Usuario (opcional)')),
   new SlashCommandBuilder().setName('toplocal').setDescription('Ver el top 10 de puntos en este servidor'),
   new SlashCommandBuilder().setName('topglobal').setDescription('Ver el top 10 de puntos global del bot'),
-  new SlashCommandBuilder().setName('tienda').setDescription('Ver la tienda de puntos'),
+  new SlashCommandBuilder().setName('tienda').setDescription('Ver la tienda de puntos (30+ colores)'),
   new SlashCommandBuilder().setName('comprar').setDescription('Comprar un item de la tienda')
     .addStringOption(o => o.setName('id').setDescription('ID del item (usa /tienda para ver)').setRequired(true)),
   new SlashCommandBuilder().setName('rob').setDescription('Intentar robar puntos a otro usuario')
     .addUserOption(o => o.setName('usuario').setDescription('Víctima').setRequired(true)),
-  // Trivia (versión con categorías)
+  // Trivia
   new SlashCommandBuilder().setName('trivia').setDescription('Responde una pregunta y gana puntos')
     .addStringOption(o => o.setName('categoria').setDescription('Categoría (opcional)').addChoices(
       { name: '🎮 Roblox', value: 'Roblox' },
@@ -123,6 +123,9 @@ const slashCommands = [
   // Moderación
   new SlashCommandBuilder().setName('whois').setDescription('Ver qué cuenta de Roblox tiene un usuario de Discord').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord').setRequired(true)),
   new SlashCommandBuilder().setName('syncall').setDescription('⭐ Sincronizar roles de todos los miembros verificados'),
+  // DMs
+  new SlashCommandBuilder().setName('dms').setDescription('Activar/desactivar mensajes directos del bot')
+    .addBooleanOption(o => o.setName('activar').setDescription('True para activar, False para desactivar').setRequired(false)),
   // Ayuda
   new SlashCommandBuilder().setName('ayuda').setDescription('Ver todos los comandos disponibles con descripciones'),
   // Admin
@@ -165,8 +168,8 @@ const slashCommands = [
     .addIntegerOption(o => o.setName('cantidad').setDescription('Cantidad a añadir').setRequired(true)),
   new SlashCommandBuilder().setName('ownercolor').setDescription('[Owner] Cambia el color del perfil del owner')
     .addStringOption(o => o.setName('color').setDescription('Código HEX (#RRGGBB)').setRequired(true)),
-  // Compra Premium
-  new SlashCommandBuilder().setName('buy').setDescription('Comprar Premium con Ko‑fi (genera código)'),
+  // Compra Premium (PayPal)
+  new SlashCommandBuilder().setName('buy').setDescription('Comprar Premium con PayPal (7 o 30 días)'),
 ].map(c => c.toJSON());
 
 async function registerSlashCommands() {
@@ -262,6 +265,7 @@ client.on('interactionCreate', async (interaction) => {
       case 'trivia':           await cmd.cmdTrivia(ctx, interaction.options.getString('categoria')); break;
       case 'whois':            await cmd.cmdWhois(ctx, interaction.options.getUser('usuario')); break;
       case 'syncall':          await cmd.cmdSyncAll(ctx); break;
+      case 'dms':              await cmd.cmdDMs(ctx, interaction.options.getBoolean('activar')); break;
       case 'actualizar':       await cmd.cmdActualizar(ctx); break;
       case 'desvincular':      await cmd.cmdDesvincular(ctx); break;
       case 'ayuda':            await cmd.cmdAyuda(ctx); break;
@@ -364,6 +368,7 @@ client.on('messageCreate', async (message) => {
       case 'trivia':             await cmd.cmdTrivia(ctx, args[0]); break;
       case 'whois':              await cmd.cmdWhois(ctx, users[0]); break;
       case 'syncall':            await cmd.cmdSyncAll(ctx); break;
+      case 'dms':                await cmd.cmdDMs(ctx, args[0]?.toLowerCase() === 'true' ? true : (args[0]?.toLowerCase() === 'false' ? false : undefined)); break;
       case 'actualizar':         await cmd.cmdActualizar(ctx); break;
       case 'desvincular':        await cmd.cmdDesvincular(ctx); break;
       case 'ayuda':              await cmd.cmdAyuda(ctx); break;
@@ -435,105 +440,85 @@ client.on('messageCreate', async (message) => {
 client.on('guildMemberAdd', (member) => cmd.onMemberJoin(member).catch(console.error));
 client.on('guildCreate',    (guild)  => cmd.onGuildAdd(guild).catch(console.error));
 
-// ── Webhook Ko-fi y Health Check (con soporte de códigos) ───
+// ── Webhook de PayPal (y Health Check) ───────────────────────
 const server = http.createServer(async (req, res) => {
+  // Health check para Railway
   if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('OK');
     return;
   }
 
-  if (req.method === 'POST' && req.url === '/kofi') {
+  // Webhook de PayPal (IPN)
+  if (req.method === 'POST' && req.url === '/paypal-webhook') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const params  = new URLSearchParams(body);
-        const payload = JSON.parse(params.get('data') || '{}');
-        if (KOFI_TOKEN && payload.verification_token !== KOFI_TOKEN) { res.writeHead(401); return res.end(); }
+        const params = new URLSearchParams(body);
+        const paymentStatus = params.get('payment_status');
+        const itemName = params.get('item_name') || '';
+        const mcGross = parseFloat(params.get('mc_gross') || '0');
+        const custom = params.get('custom'); // ID de Discord
+        const txnId = params.get('txn_id');
 
-        const message = payload.message || '';
-        
-        const codeMatch = message.match(/PREMIUM-[A-Z0-9]{6}/i);
-        let discordId = null;
-        let durationDays = null;
-        let tierName = '';
-        let tierEmoji = '⭐';
-        
-        if (codeMatch) {
-          const code = codeMatch[0].toUpperCase();
-          const pending = await redisGet(`pending_premium:${code}`);
-          if (pending && new Date(pending.expires) > new Date()) {
-            discordId = pending.userId;
-            durationDays = pending.plan;
-            tierName = pending.planName;
-            tierEmoji = pending.plan === 2 ? '🌟' : (pending.plan === 7 ? '⭐' : '💎');
-            await redisDel(`pending_premium:${code}`);
-            console.log(`✅ Código canjeado: ${code} -> ${discordId} (${durationDays} días)`);
-          } else {
-            console.log(`⚠️ Código inválido/expirado: ${code}`);
-          }
-        }
-        
-        if (!discordId) {
-          const match = message.match(/\b(\d{17,19})\b/);
-          if (match) {
-            discordId = match[1];
-            const amount = parseFloat(payload.amount ?? '0');
-            if (amount >= 0.50 && amount < 3.00) { durationDays = 2; tierName = 'Starter (2 días)'; tierEmoji = '🌟'; }
-            else if (amount >= 3.00 && amount < 7.00) { durationDays = 7; tierName = 'Weekly (7 días)'; tierEmoji = '⭐'; }
-            else { durationDays = 30; tierName = 'Monthly (30 días)'; tierEmoji = '💎'; }
-            console.log(`📟 ID detectado: ${discordId} -> ${durationDays} días`);
-          } else {
-            console.log('⚠️ Ko-fi sin Discord ID ni código válido:', payload.from_name);
-            res.writeHead(200); res.end('OK'); return;
-          }
-        }
-        
-        if (!discordId || !durationDays) {
-          res.writeHead(200); res.end('OK'); return;
+        if (paymentStatus !== 'Completed') {
+          console.log(`⚠️ Pago no completado: ${paymentStatus}`);
+          res.writeHead(200); res.end(); return;
         }
 
-        const expDate = new Date(Date.now() + durationDays * 86400000).toISOString();
-        const RURL    = process.env.UPSTASH_REDIS_REST_URL;
-        const RTOKEN  = process.env.UPSTASH_REDIS_REST_TOKEN;
-        const data    = { activatedAt: new Date().toISOString(), expiresAt: expDate, kofiName: payload.from_name, amount: payload.amount, durationDays };
-        const encoded = encodeURIComponent(JSON.stringify(data));
+        if (!custom) {
+          console.log('⚠️ Webhook sin ID de Discord (custom)');
+          res.writeHead(200); res.end(); return;
+        }
 
-        await fetch(`${RURL}/set/premium:${discordId}/${encoded}`, { headers: { Authorization: `Bearer ${RTOKEN}` } });
+        // Determinar días según el nombre del producto o monto
+        let days;
+        if (itemName.includes('30') || mcGross >= 4.99) days = 30;
+        else if (itemName.includes('7') || mcGross >= 1.99) days = 7;
+        else {
+          console.log(`⚠️ No se pudo determinar el plan: ${itemName} / $${mcGross}`);
+          res.writeHead(200); res.end(); return;
+        }
+
+        // Activar Premium
+        const expDate = new Date(Date.now() + days * 86400000).toISOString();
+        await redisSet(`premium:${custom}`, {
+          activatedAt: new Date().toISOString(),
+          expiresAt: expDate,
+          source: 'paypal',
+          amount: mcGross,
+          durationDays: days,
+          txnId
+        });
+
+        const pList = await redisGet('premium_users_list') || [];
+        if (!pList.includes(custom)) {
+          pList.push(custom);
+          await redisSet('premium_users_list', pList);
+        }
+
+        console.log(`✅ PayPal: Premium ${days} días activado para ${custom} ($${mcGross})`);
 
         try {
-          const lr   = await fetch(`${RURL}/get/premium_users_list`, { headers: { Authorization: `Bearer ${RTOKEN}` } });
-          const ld   = await lr.json();
-          const pList = ld.result ? JSON.parse(ld.result) : [];
-          if (!pList.includes(discordId)) {
-            pList.push(discordId);
-            const el = encodeURIComponent(JSON.stringify(pList));
-            await fetch(`${RURL}/set/premium_users_list/${el}`, { headers: { Authorization: `Bearer ${RTOKEN}` } });
+          const userEntry = await cmd.db?.getUser(custom) || await redisGet(`user:${custom}`);
+          if (userEntry?.allowDMs !== false) {
+            const user = await client.users.fetch(custom);
+            await user.send(`✅ **¡Pago recibido!** Tu Premium de **${days} días** ha sido activado.\nUsa \`/premium\` para verificarlo.`);
           }
-        } catch(e) { console.error('Error actualizando lista premium:', e.message); }
+        } catch {}
 
-        console.log(`${tierEmoji} Premium: ${discordId} → ${tierName} ($${payload.amount}) — ${payload.from_name}`);
-
-        try {
-          const user = await client.users.fetch(discordId);
-          const expF = new Date(expDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
-          await user.send(
-            `${tierEmoji} **¡Gracias por tu apoyo, ${payload.from_name}!**\n\n` +
-            `> **Plan:** ${tierEmoji} ${tierName}\n` +
-            `> **Monto:** $${payload.amount}\n` +
-            `> **Expira:** ${expF}\n\n` +
-            'Usa `/premium` para ver tu estado y `/flex` para tu tarjeta exclusiva.'
-          );
-        } catch { console.log('DM fallido:', discordId); }
-
-        res.writeHead(200); res.end('OK');
-      } catch (e) { console.error('Webhook error:', e.message); res.writeHead(500); res.end(); }
+        res.writeHead(200); res.end();
+      } catch (e) {
+        console.error('Error en webhook PayPal:', e);
+        res.writeHead(500); res.end();
+      }
     });
-  } else {
-    res.writeHead(404);
-    res.end();
+    return;
   }
+
+  res.writeHead(404);
+  res.end();
 });
 
 // ── Arranque ──────────────────────────────────────────────────
