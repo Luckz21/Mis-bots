@@ -56,34 +56,43 @@ window.addEventListener('resize', () => {
 });
 
 // Animación de números
-function animateNumbers() {
-    const numberElements = document.querySelectorAll('[data-count]');
-    
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const el = entry.target;
-                const target = parseInt(el.getAttribute('data-count'));
-                let current = 0;
-                const duration = 2000;
-                const step = target / (duration / 16);
-                
-                const updateNumber = () => {
-                    current += step;
-                    if (current < target) {
-                        el.textContent = Math.floor(current).toLocaleString();
-                        requestAnimationFrame(updateNumber);
-                    } else {
-                        el.textContent = target.toLocaleString();
-                    }
-                };
-                requestAnimationFrame(updateNumber);
-                observer.unobserve(el);
-            }
-        });
-    }, { threshold: 0.5 });
-    
-    numberElements.forEach(el => observer.observe(el));
+function animateNumber(element, start, end, duration) {
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const current = Math.floor(progress * (end - start) + start);
+        element.textContent = current.toLocaleString();
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    };
+    window.requestAnimationFrame(step);
+}
+
+// Cargar estadísticas reales desde la API
+async function loadStats() {
+    try {
+        const response = await fetch('/api/stats');
+        if (!response.ok) throw new Error('Error en la API');
+        const stats = await response.json();
+        
+        animateNumber(document.getElementById('stats-servers'), 0, stats.servers, 2000);
+        animateNumber(document.getElementById('stats-users'), 0, stats.users, 2000);
+        animateNumber(document.getElementById('stats-commands'), 0, stats.commands, 2000);
+        animateNumber(document.getElementById('stats-premium'), 0, stats.premium, 2000);
+        
+        document.getElementById('serverCount').textContent = stats.servers.toLocaleString();
+        document.getElementById('userCount').textContent = stats.users.toLocaleString();
+    } catch (e) {
+        console.error('Error cargando estadísticas:', e);
+        document.getElementById('serverCount').textContent = '...';
+        document.getElementById('userCount').textContent = '...';
+        document.getElementById('stats-servers').textContent = '...';
+        document.getElementById('stats-users').textContent = '...';
+        document.getElementById('stats-commands').textContent = '...';
+        document.getElementById('stats-premium').textContent = '...';
+    }
 }
 
 // Animación de tarjetas al scroll
@@ -99,7 +108,12 @@ function initScrollAnimations() {
         });
     }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
     
-    cards.forEach(card => observer.observe(card));
+    cards.forEach(card => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(card);
+    });
 }
 
 // Header scroll effect
@@ -174,7 +188,7 @@ document.head.appendChild(style);
 document.addEventListener('DOMContentLoaded', () => {
     initCanvas();
     drawParticles();
-    animateNumbers();
+    loadStats();
     initScrollAnimations();
     initHeaderScroll();
     initSmoothScroll();
