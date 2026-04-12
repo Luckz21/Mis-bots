@@ -1,5 +1,7 @@
 // ============================================================
 //  bot.js  —  v10.6 (EXPANDED) - Railway Ready
+//  + Comandos owner, buy, encarcelar, setpuntos, etc.
+//  + Webhook Ko‑fi con soporte de códigos PREMIUM-XXXXXX
 // ============================================================
 
 const {
@@ -22,14 +24,32 @@ if (!TOKEN)     { console.error('❌ Falta DISCORD_TOKEN');  process.exit(1); }
 if (!CLIENT_ID) { console.error('❌ Falta CLIENT_ID');      process.exit(1); }
 if (!process.env.UPSTASH_REDIS_REST_URL) { console.error('❌ Falta Upstash'); process.exit(1); }
 
+// Funciones Redis para usar en el webhook
+async function redisGet(key) {
+  try {
+    const res  = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/get/${encodeURIComponent(key)}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
+    const data = await res.json();
+    return data.result ? JSON.parse(data.result) : null;
+  } catch (e) { console.error('redisGet:', e.message); return null; }
+}
+async function redisSet(key, value) {
+  try {
+    const encoded = encodeURIComponent(JSON.stringify(value));
+    await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/set/${encodeURIComponent(key)}/${encoded}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
+  } catch (e) { console.error('redisSet:', e.message); }
+}
+async function redisDel(key) {
+  try {
+    await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/del/${encodeURIComponent(key)}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
+  } catch (e) { console.error('redisDel:', e.message); }
+}
+
 const guildPrefixCache = new Map();
 
 async function getGuildPrefix(guildId) {
   if (guildPrefixCache.has(guildId)) return guildPrefixCache.get(guildId);
-  const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
-  const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
   try {
-    const res    = await fetch(`${REDIS_URL}/get/guild:${guildId}`, { headers: { Authorization: `Bearer ${REDIS_TOKEN}` } });
+    const res    = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/get/guild:${guildId}`, { headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}` } });
     const data   = await res.json();
     const config = data.result ? JSON.parse(data.result) : {};
     const prefix = config.prefix ?? null;
@@ -39,7 +59,7 @@ async function getGuildPrefix(guildId) {
   } catch { return null; }
 }
 
-// ── Slash commands (actualizados, sin duplicados) ─────────────
+// ── Slash commands (actualizados con nuevos comandos owner y buy) ──
 const slashCommands = [
   // Verificación
   new SlashCommandBuilder().setName('verificar').setDescription('Vincula tu cuenta de Roblox con Discord').addStringOption(o => o.setName('usuario').setDescription('Tu nombre de usuario en Roblox').setRequired(true)),
@@ -127,13 +147,26 @@ const slashCommands = [
       .addChoices({ name: '🇪🇸 Español', value: 'es' }, { name: '🇺🇸 English', value: 'en' }, { name: '🇧🇷 Português', value: 'pt' }))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder().setName('setprefix').setDescription('[Admin] Cambiar el prefijo para comandos de texto').addStringOption(o => o.setName('prefijo').setDescription('Nuevo prefijo (ej: $)').setRequired(true)).setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
-    // ... resto de comandos ...
   new SlashCommandBuilder().setName('setvoicecategory').setDescription('[Premium] Configurar categoría para canales de voz automáticos').addChannelOption(o => o.setName('categoria').setDescription('Categoría de voz').setRequired(true).addChannelTypes(ChannelType.GuildCategory)).setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+  // Owner exclusivos
   new SlashCommandBuilder().setName('activarpremium').setDescription('[Owner] Activar Premium manualmente')
     .addStringOption(o => o.setName('usuario_id').setDescription('ID de Discord del usuario').setRequired(true))
     .addIntegerOption(o => o.setName('dias').setDescription('Días (vacío = permanente)')),
   new SlashCommandBuilder().setName('desactivarpremium').setDescription('[Owner] Desactivar Premium de un usuario')
     .addStringOption(o => o.setName('usuario_id').setDescription('ID de Discord del usuario').setRequired(true)),
+  new SlashCommandBuilder().setName('encarcelar').setDescription('[Owner] Encarcela a un usuario')
+    .addUserOption(o => o.setName('usuario').setDescription('Usuario a encarcelar').setRequired(true))
+    .addIntegerOption(o => o.setName('horas').setDescription('Duración en horas (defecto 1)')),
+  new SlashCommandBuilder().setName('setpuntos').setDescription('[Owner] Establece los puntos de un usuario')
+    .addUserOption(o => o.setName('usuario').setDescription('Usuario').setRequired(true))
+    .addIntegerOption(o => o.setName('cantidad').setDescription('Cantidad de puntos').setRequired(true)),
+  new SlashCommandBuilder().setName('addpuntos').setDescription('[Owner] Añade puntos a un usuario')
+    .addUserOption(o => o.setName('usuario').setDescription('Usuario').setRequired(true))
+    .addIntegerOption(o => o.setName('cantidad').setDescription('Cantidad a añadir').setRequired(true)),
+  new SlashCommandBuilder().setName('ownercolor').setDescription('[Owner] Cambia el color del perfil del owner')
+    .addStringOption(o => o.setName('color').setDescription('Código HEX (#RRGGBB)').setRequired(true)),
+  // Compra Premium
+  new SlashCommandBuilder().setName('buy').setDescription('Comprar Premium con Ko‑fi (genera código)'),
 ].map(c => c.toJSON());
 
 async function registerSlashCommands() {
@@ -244,12 +277,13 @@ client.on('interactionCreate', async (interaction) => {
       case 'setlang':          await cmd.cmdSetLang(ctx, interaction.options.getString('idioma')); break;
       case 'setprefix':        await cmd.cmdSetPrefix(ctx, interaction.options.getString('prefijo')); break;
       case 'setvoicecategory': await cmd.cmdSetVoiceCategory(ctx, interaction.options.getChannel('categoria').id); break;
-      case 'activarpremium':
-  await cmd.cmdActivarPremium(ctx, interaction.options.getString('usuario_id'), interaction.options.getInteger('dias'));
-  break;
-case 'desactivarpremium':
-  await cmd.cmdDesactivarPremium(ctx, interaction.options.getString('usuario_id'));
-  break;
+      case 'activarpremium':    await cmd.cmdActivarPremium(ctx, interaction.options.getString('usuario_id'), interaction.options.getInteger('dias')); break;
+      case 'desactivarpremium': await cmd.cmdDesactivarPremium(ctx, interaction.options.getString('usuario_id')); break;
+      case 'encarcelar':       await cmd.cmdEncarcelar(ctx, interaction.options.getUser('usuario'), interaction.options.getInteger('horas') ?? 1); break;
+      case 'setpuntos':        await cmd.cmdSetPuntos(ctx, interaction.options.getUser('usuario'), interaction.options.getInteger('cantidad')); break;
+      case 'addpuntos':        await cmd.cmdAddPuntos(ctx, interaction.options.getUser('usuario'), interaction.options.getInteger('cantidad')); break;
+      case 'ownercolor':       await cmd.cmdOwnerColor(ctx, interaction.options.getString('color')); break;
+      case 'buy':              await cmd.cmdBuyPremium(ctx); break;
     }
   } catch (e) {
     console.error(`Error en /${interaction.commandName}:`, e);
@@ -386,6 +420,10 @@ client.on('messageCreate', async (message) => {
       }
       case 'activarpremium':      await cmd.cmdActivarPremium(ctx, args[0], parseInt(args[1])); break;
       case 'desactivarpremium':   await cmd.cmdDesactivarPremium(ctx, args[0]); break;
+      case 'encarcelar':          await cmd.cmdEncarcelar(ctx, users[0], parseInt(args[1]) || 1); break;
+      case 'setpuntos':           await cmd.cmdSetPuntos(ctx, users[0], parseInt(args[1])); break;
+      case 'addpuntos':           await cmd.cmdAddPuntos(ctx, users[0], parseInt(args[1])); break;
+      case 'buy':                 await cmd.cmdBuyPremium(ctx); break;
     }
   } catch (e) {
     console.error(`Error en ${prefix}${cmdName}:`, e);
@@ -397,9 +435,8 @@ client.on('messageCreate', async (message) => {
 client.on('guildMemberAdd', (member) => cmd.onMemberJoin(member).catch(console.error));
 client.on('guildCreate',    (guild)  => cmd.onGuildAdd(guild).catch(console.error));
 
-// ── Webhook Ko-fi y Health Check (Railway Ready) ─────────────
+// ── Webhook Ko-fi y Health Check (con soporte de códigos) ───
 const server = http.createServer(async (req, res) => {
-  // Health check para Railway
   if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('OK');
@@ -416,28 +453,51 @@ const server = http.createServer(async (req, res) => {
         if (KOFI_TOKEN && payload.verification_token !== KOFI_TOKEN) { res.writeHead(401); return res.end(); }
 
         const message = payload.message || '';
-        const match   = message.match(/\b(\d{17,19})\b/);
-        if (!match) {
-          console.log('⚠️ Ko-fi sin Discord ID:', payload.from_name);
-          res.writeHead(200); res.end('OK'); return;
+        
+        const codeMatch = message.match(/PREMIUM-[A-Z0-9]{6}/i);
+        let discordId = null;
+        let durationDays = null;
+        let tierName = '';
+        let tierEmoji = '⭐';
+        
+        if (codeMatch) {
+          const code = codeMatch[0].toUpperCase();
+          const pending = await redisGet(`pending_premium:${code}`);
+          if (pending && new Date(pending.expires) > new Date()) {
+            discordId = pending.userId;
+            durationDays = pending.plan;
+            tierName = pending.planName;
+            tierEmoji = pending.plan === 2 ? '🌟' : (pending.plan === 7 ? '⭐' : '💎');
+            await redisDel(`pending_premium:${code}`);
+            console.log(`✅ Código canjeado: ${code} -> ${discordId} (${durationDays} días)`);
+          } else {
+            console.log(`⚠️ Código inválido/expirado: ${code}`);
+          }
         }
-
-        const discordId = match[1];
-        const amount    = parseFloat(payload.amount ?? '0');
-
-        let durationDays, tierName, tierEmoji;
-        if (amount >= 0.50 && amount < 3.00) {
-          durationDays = 2;  tierName = 'Starter (2 días)';  tierEmoji = '🌟';
-        } else if (amount >= 3.00 && amount < 7.00) {
-          durationDays = 7;  tierName = 'Weekly (7 días)';   tierEmoji = '⭐';
-        } else {
-          durationDays = 30; tierName = 'Monthly (30 días)'; tierEmoji = '💎';
+        
+        if (!discordId) {
+          const match = message.match(/\b(\d{17,19})\b/);
+          if (match) {
+            discordId = match[1];
+            const amount = parseFloat(payload.amount ?? '0');
+            if (amount >= 0.50 && amount < 3.00) { durationDays = 2; tierName = 'Starter (2 días)'; tierEmoji = '🌟'; }
+            else if (amount >= 3.00 && amount < 7.00) { durationDays = 7; tierName = 'Weekly (7 días)'; tierEmoji = '⭐'; }
+            else { durationDays = 30; tierName = 'Monthly (30 días)'; tierEmoji = '💎'; }
+            console.log(`📟 ID detectado: ${discordId} -> ${durationDays} días`);
+          } else {
+            console.log('⚠️ Ko-fi sin Discord ID ni código válido:', payload.from_name);
+            res.writeHead(200); res.end('OK'); return;
+          }
+        }
+        
+        if (!discordId || !durationDays) {
+          res.writeHead(200); res.end('OK'); return;
         }
 
         const expDate = new Date(Date.now() + durationDays * 86400000).toISOString();
         const RURL    = process.env.UPSTASH_REDIS_REST_URL;
         const RTOKEN  = process.env.UPSTASH_REDIS_REST_TOKEN;
-        const data    = { activatedAt: new Date().toISOString(), expiresAt: expDate, kofiName: payload.from_name, amount, durationDays };
+        const data    = { activatedAt: new Date().toISOString(), expiresAt: expDate, kofiName: payload.from_name, amount: payload.amount, durationDays };
         const encoded = encodeURIComponent(JSON.stringify(data));
 
         await fetch(`${RURL}/set/premium:${discordId}/${encoded}`, { headers: { Authorization: `Bearer ${RTOKEN}` } });
@@ -453,15 +513,15 @@ const server = http.createServer(async (req, res) => {
           }
         } catch(e) { console.error('Error actualizando lista premium:', e.message); }
 
-        console.log(`${tierEmoji} Premium: ${discordId} → ${tierName} ($${amount}) — ${payload.from_name}`);
+        console.log(`${tierEmoji} Premium: ${discordId} → ${tierName} ($${payload.amount}) — ${payload.from_name}`);
 
         try {
           const user = await client.users.fetch(discordId);
           const expF = new Date(expDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
           await user.send(
-            `${tierEmoji} **¡Gracias por tu donación, ${payload.from_name}!**\n\n` +
+            `${tierEmoji} **¡Gracias por tu apoyo, ${payload.from_name}!**\n\n` +
             `> **Plan:** ${tierEmoji} ${tierName}\n` +
-            `> **Monto:** $${amount}\n` +
+            `> **Monto:** $${payload.amount}\n` +
             `> **Expira:** ${expF}\n\n` +
             'Usa `/premium` para ver tu estado y `/flex` para tu tarjeta exclusiva.'
           );
