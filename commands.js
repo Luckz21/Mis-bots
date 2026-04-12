@@ -1,10 +1,12 @@
 // ============================================================
-//  commands.js  —  v10.6  (FINAL CORREGIDO)
-//  + Color de perfil funcional
-//  + Encarcelamiento con fianza
-//  + Trivia 5 pts y límite diario (10 free / 30 premium)
-//  + Owner commands
-//  + Compra Premium con código
+//  commands.js  —  v10.7 (MEJORAS MASIVAS)
+//  + PayPal integrado
+//  + GIFs anime en acciones
+//  + 30+ colores en tienda
+//  + 10 rangos y 20 insignias adicionales
+//  + Perfil mejorado
+//  + Comando /dms
+//  + Ayuda con color #1900ff
 // ============================================================
 
 const {
@@ -79,6 +81,17 @@ async function isJailed(userId) {
   const jailed = await redisGet(`jailed:${userId}`);
   if (!jailed) return false;
   return new Date(jailed.until) > new Date();
+}
+
+// ── GIFs anime ───────────────────────────────────────────────
+async function getAnimeGif(category) {
+  try {
+    const res = await fetch(`https://api.waifu.pics/sfw/${category}`);
+    const data = await res.json();
+    return data.url;
+  } catch {
+    return null;
+  }
 }
 
 // ── Roblox API con caché ──────────────────────────────────────
@@ -217,7 +230,10 @@ const roblox = {
   },
   getRobloxStatus: async () => {
     try {
-      const res = await fetch('https://status.roblox.com/api/v2/summary.json');
+      const res = await fetch('https://status.roblox.com/api/v2/summary.json', {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
   },
@@ -277,20 +293,57 @@ function progressBar(current, max, size = 10) {
   return '🟩'.repeat(filled) + '⬛'.repeat(size - filled);
 }
 
+// ── Rangos (10 niveles) ──────────────────────────────────────
+const RANKS = [
+  { name: '🥉 Bronce',    min: 0,     color: 0xCD7F32, next: 500   },
+  { name: '🥈 Plata',     min: 500,   color: 0xC0C0C0, next: 2000  },
+  { name: '🥇 Oro',       min: 2000,  color: 0xFFD700, next: 5000  },
+  { name: '🏆 Platino',   min: 5000,  color: 0xE5E4E2, next: 10000 },
+  { name: '💎 Diamante',  min: 10000, color: 0x00FFFF, next: 20000 },
+  { name: '🌟 Maestro',   min: 20000, color: 0x9B59B6, next: 35000 },
+  { name: '🔮 Gran Maestro', min: 35000, color: 0x8E44AD, next: 50000 },
+  { name: '👑 Élite',     min: 50000, color: 0xF1C40F, next: 75000 },
+  { name: '🚀 Leyenda',   min: 75000, color: 0xE67E22, next: 100000 },
+  { name: '⚡ Dios',      min: 100000, color: 0xFF00FF, next: null },
+];
+
 function getRank(points) {
-  if (points >= 10000) return { name: '💎 Diamante', color: 0x00FFFF, next: null };
-  if (points >= 5000)  return { name: '🏆 Platino',  color: 0xE5E4E2, next: 10000 };
-  if (points >= 2000)  return { name: '🥇 Oro',      color: 0xFFD700, next: 5000  };
-  if (points >= 500)   return { name: '🥈 Plata',    color: 0xC0C0C0, next: 2000  };
-  return                      { name: '🥉 Bronce',   color: 0xCD7F32, next: 500   };
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (points >= RANKS[i].min) return RANKS[i];
+  }
+  return RANKS[0];
 }
 
+// ── Insignias (logros) ───────────────────────────────────────
 const ACHIEVEMENTS = [
-  { id: 'first_verify',  name: '🎖️ Primer Paso',      desc: 'Verificar tu cuenta por primera vez' },
-  { id: 'streak_7',      name: '🔥 Racha de 7 días',  desc: 'Usar !daily 7 días seguidos' },
+  // Verificación
+  { id: 'first_verify',  name: '🎖️ Primer Paso', desc: 'Verificar tu cuenta por primera vez' },
+  // Rachas
+  { id: 'streak_7',      name: '🔥 Racha de 7 días', desc: 'Usar !daily 7 días seguidos' },
   { id: 'streak_30',     name: '🌟 Racha de 30 días', desc: 'Usar !daily 30 días seguidos' },
-  { id: 'points_1000',   name: '💰 1000 puntos',      desc: 'Acumular 1000 puntos en total' },
-  { id: 'points_5000',   name: '💎 5000 puntos',      desc: 'Acumular 5000 puntos en total' },
+  // Puntos totales
+  { id: 'points_1000',   name: '💰 1000 puntos', desc: 'Acumular 1000 puntos en total' },
+  { id: 'points_5000',   name: '💎 5000 puntos', desc: 'Acumular 5000 puntos en total' },
+  { id: 'points_10000',  name: '🏦 10000 puntos', desc: 'Acumular 10000 puntos en total' },
+  { id: 'points_50000',  name: '🚀 50000 puntos', desc: 'Acumular 50000 puntos en total' },
+  // Trivia
+  { id: 'trivia_10',     name: '🧠 Aprendiz', desc: 'Responder 10 preguntas de trivia correctamente' },
+  { id: 'trivia_50',     name: '📚 Erudito', desc: 'Responder 50 preguntas de trivia correctamente' },
+  { id: 'trivia_100',    name: '🏛️ Sabio', desc: 'Responder 100 preguntas de trivia correctamente' },
+  // Robos
+  { id: 'rob_5',         name: '🦹 Ladronzuelo', desc: 'Robar exitosamente 5 veces' },
+  { id: 'rob_20',        name: '💰 Maestro del hurto', desc: 'Robar exitosamente 20 veces' },
+  { id: 'rob_fail_10',   name: '🚔 Torpe', desc: 'Fallar 10 robos' },
+  { id: 'rob_jail_5',    name: '🔒 Preso', desc: 'Ir a la cárcel 5 veces' },
+  { id: 'bail_paid_3',   name: '💸 Fianza pagada', desc: 'Pagar fianza 3 veces' },
+  // Dinero robado total
+  { id: 'stolen_1000',   name: '🪙 Mil monedas robadas', desc: 'Robar un total de 1000 puntos' },
+  { id: 'stolen_10000',  name: '💼 Botín mayor', desc: 'Robar un total de 10000 puntos' },
+  // Diarias
+  { id: 'daily_30',      name: '📅 Comprometido', desc: 'Reclamar 30 dailies en total' },
+  // Tienda
+  { id: 'shop_5',        name: '🛍️ Comprador', desc: 'Comprar 5 items en la tienda' },
+  { id: 'color_collector', name: '🎨 Coleccionista', desc: 'Comprar 10 colores diferentes' },
 ];
 
 async function checkAchievements(discordId, eco, user) {
@@ -302,6 +355,27 @@ async function checkAchievements(discordId, eco, user) {
     streak_30:    () => (eco.streak ?? 0) >= 30,
     points_1000:  () => (eco.totalEarned ?? 0) >= 1000,
     points_5000:  () => (eco.totalEarned ?? 0) >= 5000,
+    points_10000: () => (eco.totalEarned ?? 0) >= 10000,
+    points_50000: () => (eco.totalEarned ?? 0) >= 50000,
+    trivia_10:    () => (eco.triviaWins ?? 0) >= 10,
+    trivia_50:    () => (eco.triviaWins ?? 0) >= 50,
+    trivia_100:   () => (eco.triviaWins ?? 0) >= 100,
+    rob_5:        () => (eco.successfulRobs ?? 0) >= 5,
+    rob_20:       () => (eco.successfulRobs ?? 0) >= 20,
+    rob_fail_10:  () => (eco.failedRobs ?? 0) >= 10,
+    rob_jail_5:   () => (eco.timesJailed ?? 0) >= 5,
+    bail_paid_3:  () => (eco.bailPaidCount ?? 0) >= 3,
+    stolen_1000:  () => (eco.totalStolen ?? 0) >= 1000,
+    stolen_10000: () => (eco.totalStolen ?? 0) >= 10000,
+    daily_30:     () => (eco.dailyClaims ?? 0) >= 30,
+    shop_5:       () => (eco.shopPurchases ?? 0) >= 5,
+    color_collector: () => {
+      const profile = user;
+      const inventory = profile?.inventory ?? [];
+      const colorItems = SHOP_ITEMS.filter(i => i.type === 'color').map(i => i.id);
+      const ownedColors = inventory.filter(id => colorItems.includes(id));
+      return ownedColors.length >= 10;
+    }
   };
   for (const ach of ACHIEVEMENTS) {
     if (!achieved.includes(ach.id) && conditions[ach.id]?.()) {
@@ -354,7 +428,7 @@ function premiumEmbed(ctx) {
     .setDescription(
       '```\n╔══════════════════════════╗\n║   PREMIUM MEMBERSHIP     ║\n╚══════════════════════════╝```\n' +
       '**Funciones Premium:**\n> 🔔 Alertas ilimitadas\n> 🎨 `/flex`\n> ⚔️ `/comparar`\n> 📜 `/historial`\n> ⚙️ `/syncall`\n> ⏩ Cooldowns reducidos\n\n' +
-      `**[☕ Ko-fi](https://ko-fi.com/${process.env.KOFI_PAGE ?? 'tu_pagina'})** — Pon tu ID: \`${ctx.userId}\``
+      `Usa \`/buy\` para obtener Premium con PayPal.`
     ).setTimestamp()] });
 }
 
@@ -439,8 +513,13 @@ async function startPresenceMonitor(client) {
               const channel = await client.channels.fetch(channelId);
               await channel.send({ content: `<@${discordId}>`, embeds: [embed] });
             } catch {
-              try { const user = await client.users.fetch(discordId); await user.send({ embeds: [embed] }); }
-              catch { console.error('No pude notificar a', discordId); }
+              try { 
+                const userEntry = await db.getUser(discordId);
+                if (userEntry?.allowDMs !== false) {
+                  const user = await client.users.fetch(discordId);
+                  await user.send({ embeds: [embed] });
+                }
+              } catch { console.error('No pude notificar a', discordId); }
             }
           }
           presenceCacheMonitor[alert.watchedRobloxId] = curr;
@@ -485,8 +564,8 @@ async function onGuildAdd(guild) {
     const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(guild.members.me)?.has('SendMessages'));
     if (!channel) return;
     channel.send({ embeds: [new EmbedBuilder()
-      .setTitle('👋 ¡Hola! Soy el Bot de Roblox v10.6')
-      .setColor(0x5865F2)
+      .setTitle('👋 ¡Hola! Soy el Bot de Roblox v10.7')
+      .setColor(0x1900ff)
       .setDescription('Gracias por añadirme. Aquí está la guía rápida:')
       .addFields(
         { name: '1️⃣ Rol de verificado',  value: '`/setverifiedrole @Rol`' },
@@ -497,7 +576,7 @@ async function onGuildAdd(guild) {
         { name: '6️⃣ Verificación',       value: 'Los usuarios usan `/verificar <username>`' },
         { name: '📋 Todos los comandos',  value: '`/ayuda`' },
       )
-      .setFooter({ text: 'Bot Roblox v10.6 · Usa /ayuda para ver todo' })] });
+      .setFooter({ text: 'Bot Roblox v10.7 · Usa /ayuda para ver todo' })] });
   } catch (e) { console.error('onGuildAdd:', e.message); }
 }
 
@@ -511,7 +590,7 @@ async function cmdCaptcha(ctx) {
     new ButtonBuilder().setCustomId('captcha_verify').setLabel('✅ Soy humano').setStyle(ButtonStyle.Success),
   );
   const msg = await ctx.replyAndFetch({ embeds: [
-    new EmbedBuilder().setTitle(t(lang, 'captcha_title')).setColor(0x5865F2).setDescription(t(lang, 'captcha_desc'))
+    new EmbedBuilder().setTitle(t(lang, 'captcha_title')).setColor(0x1900ff).setDescription(t(lang, 'captcha_desc'))
   ], components: [row] });
   if (!msg) return;
   const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
@@ -538,7 +617,7 @@ async function cmdVerificar(ctx, robloxUsername) {
   const code = generateCode();
   pendingVerifications[ctx.userId] = { robloxId: robloxUser.id, robloxUsername: robloxUser.name, code };
   ctx.reply({ embeds: [new EmbedBuilder()
-    .setTitle(t(lang, 'verify_title')).setColor(0xFFAA00)
+    .setTitle(t(lang, 'verify_title')).setColor(0x1900ff)
     .setDescription(`${t(lang, 'verify_step1')}\n${t(lang, 'verify_step2')}\n\`\`\`${code}\`\`\`\n${t(lang, 'verify_step3')}\n\n${t(lang, 'verify_time')}`)
     .addFields(
       { name: '👤 Usuario', value: `**${robloxUser.name}**`, inline: true },
@@ -559,6 +638,7 @@ async function cmdConfirmar(ctx) {
   await db.saveUser(ctx.userId, {
     robloxId: pending.robloxId, robloxUsername: pending.robloxUsername,
     verifiedAt: new Date().toISOString(), privacyPresence: false, privacyProfile: true,
+    allowDMs: true, // por defecto permitir DMs
   });
   const eco    = await db.getEconomy(ctx.userId) ?? { points: 0 };
   const user   = await db.getUser(ctx.userId);
@@ -596,7 +676,7 @@ async function cmdConfirmar(ctx) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  PERFIL / DASHBOARD (con barra gráfica de Premium)
+//  PERFIL / DASHBOARD (mejorado)
 // ════════════════════════════════════════════════════════════
 
 async function cmdPerfil(ctx, targetUser) {
@@ -624,10 +704,13 @@ async function cmdPerfil(ctx, targetUser) {
   const achList   = (eco?.achievements ?? []).map(id => ACHIEVEMENTS.find(a => a.id === id)?.name ?? '').filter(Boolean).join(' ');
   const createdAt = new Date(profile.created).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
+  // Color del perfil: el comprado por el usuario que ejecuta el comando, o el default #1900ff
+  const userColor = entry.profileColor || 0x1900ff;
+
   const embed = new EmbedBuilder()
     .setTitle(`${hasGold ? '⭐ ' : ''}${profile.displayName}  ·  @${profile.name}`)
     .setURL(`https://www.roblox.com/users/${entry.robloxId}/profile`)
-    .setColor(entry.profileColor || (hasGold ? 0xFFD700 : rank.color))
+    .setColor(userColor)
     .setThumbnail(avatarUrl)
     .setDescription((profile.description?.slice(0, 150) || '*Sin descripción*') + (hasPremiumRoblox ? '\n💎 **Roblox Premium**' : ''))
     .addFields(
@@ -681,7 +764,7 @@ async function cmdPerfil(ctx, targetUser) {
     const [, action, robloxId] = i.customId.split('_');
     if (action === 'avatar') {
       const url = await roblox.getAvatarFull(robloxId);
-      await i.followUp({ embeds: [new EmbedBuilder().setTitle(`🎭 ${profile.displayName}`).setImage(url).setColor(0x5865F2)], ephemeral: true });
+      await i.followUp({ embeds: [new EmbedBuilder().setTitle(`🎭 ${profile.displayName}`).setImage(url).setColor(0x1900ff)], ephemeral: true });
     } else if (action === 'estado') {
       const p = await roblox.getPresence(robloxId);
       if (!p) return i.followUp({ content: '❌ Sin presencia.', ephemeral: true });
@@ -694,7 +777,7 @@ async function cmdPerfil(ctx, targetUser) {
       await i.followUp({ embeds: [e], ephemeral: true });
     } else if (action === 'grupos') {
       const grps = await roblox.getGroups(robloxId);
-      await i.followUp({ embeds: [new EmbedBuilder().setTitle('🏰 Grupos').setColor(0x5865F2)
+      await i.followUp({ embeds: [new EmbedBuilder().setTitle('🏰 Grupos').setColor(0x1900ff)
         .setDescription(grps.slice(0, 10).map(g => `• **${g.group.name}** — ${g.role.name}`).join('\n') || '_Sin grupos_')], ephemeral: true });
     } else if (action === 'insignias') {
       const b = await roblox.getBadges(robloxId);
@@ -720,10 +803,11 @@ async function cmdAvatar(ctx, targetUser) {
   if (target.id !== ctx.userId && !entry.privacyProfile) return ctx.reply({ content: t(lang, 'profile_private'), ephemeral: true });
   const [h, f] = await Promise.all([roblox.getAvatar(entry.robloxId), roblox.getAvatarFull(entry.robloxId)]);
   if (!h) return ctx.reply({ content: t(lang, 'error_generic'), ephemeral: true });
+  const userColor = entry.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder()
     .setTitle(`🎭 Avatar de ${entry.robloxUsername}`)
     .setURL(`https://www.roblox.com/users/${entry.robloxId}/profile`)
-    .setColor(0x5865F2).setThumbnail(h).setImage(f)
+    .setColor(userColor).setThumbnail(h).setImage(f)
     .setFooter({ text: `Solicitado por ${ctx.username}` })] });
 }
 
@@ -744,9 +828,10 @@ async function cmdEstado(ctx, targetUser) {
     gameName = await roblox.getGameName(presence.universeId);
     if (isSelf && gameName) await recordGameHistory(ctx.userId, gameName, presence.rootPlaceId);
   }
+  const userColor = entry.profileColor || 0x1900ff;
   const embed = new EmbedBuilder().setTitle(label)
     .setDescription(`**[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)**`)
-    .setColor(color);
+    .setColor(userColor);
   if (gameName) embed.addFields({ name: '🕹️ Jugando', value: `[${gameName}](https://www.roblox.com/games/${presence.rootPlaceId})` });
   if (presence.lastOnline) embed.addFields({ name: '🕐 Última vez en línea', value: new Date(presence.lastOnline).toLocaleString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) });
   embed.setFooter({ text: `Solicitado por ${ctx.username}` }).setTimestamp();
@@ -784,9 +869,10 @@ async function cmdGrupos(ctx, targetUser) {
   if (target.id !== ctx.userId && !entry.privacyProfile) return ctx.reply({ content: t(lang, 'profile_private'), ephemeral: true });
   const groups = await roblox.getGroups(entry.robloxId);
   if (!groups.length) return ctx.reply(`**${entry.robloxUsername}** no tiene grupos públicos.`);
+  const userColor = entry.profileColor || 0x1900ff;
   const pages = [];
   for (let i = 0; i < groups.length; i += 5)
-    pages.push(new EmbedBuilder().setTitle(`🏰 Grupos de ${entry.robloxUsername}`).setColor(0x5865F2)
+    pages.push(new EmbedBuilder().setTitle(`🏰 Grupos de ${entry.robloxUsername}`).setColor(userColor)
       .setDescription(groups.slice(i, i + 5).map(g =>
         `**[${g.group.name}](https://www.roblox.com/groups/${g.group.id})**\n› Rol: **${g.role.name}** · Rango \`${g.role.rank}\``
       ).join('\n\n')).setFooter({ text: `${groups.length} grupos en total` }));
@@ -801,9 +887,10 @@ async function cmdAmigos(ctx, targetUser) {
   if (target.id !== ctx.userId && !entry.privacyProfile) return ctx.reply({ content: t(lang, 'profile_private'), ephemeral: true });
   const friends = await roblox.getFriends(entry.robloxId);
   if (!friends.length) return ctx.reply(`**${entry.robloxUsername}** no tiene amigos públicos.`);
+  const userColor = entry.profileColor || 0x1900ff;
   const pages = [];
   for (let i = 0; i < friends.length; i += 10)
-    pages.push(new EmbedBuilder().setTitle(`👥 Amigos de ${entry.robloxUsername}`).setColor(0x5865F2)
+    pages.push(new EmbedBuilder().setTitle(`👥 Amigos de ${entry.robloxUsername}`).setColor(userColor)
       .setDescription(friends.slice(i, i + 10).map(f => {
         const nm = f.name || `ID:${f.id}`;
         const dn = f.displayName || nm;
@@ -818,7 +905,8 @@ async function cmdInsignias(ctx, targetUser) {
   if (!entry) return ctx.reply({ content: '❌ Sin cuenta vinculada.', ephemeral: true });
   if (target.id !== ctx.userId && !entry.privacyProfile) return ctx.reply({ content: '🔒 Perfil privado.', ephemeral: true });
   const badges = await roblox.getBadges(entry.robloxId);
-  ctx.reply({ embeds: [new EmbedBuilder().setTitle(`🏅 Insignias de ${entry.robloxUsername}`).setColor(0xFEE75C)
+  const userColor = entry.profileColor || 0x1900ff;
+  ctx.reply({ embeds: [new EmbedBuilder().setTitle(`🏅 Insignias de ${entry.robloxUsername}`).setColor(userColor)
     .setDescription(badges.length ? badges.map(b => `• **${b.name}**${b.description ? `\n  › ${b.description.slice(0, 60)}` : ''}`).join('\n\n') : '_Sin insignias recientes_')
     .setFooter({ text: 'Últimas 10 insignias · Se ganan jugando diferentes juegos' })] });
 }
@@ -828,8 +916,9 @@ async function cmdHistorialNombres(ctx, targetUser) {
   const entry  = await db.getUser(target.id);
   if (!entry) return ctx.reply({ content: '❌ Sin cuenta vinculada.', ephemeral: true });
   const history = await roblox.getNameHistory(entry.robloxId);
+  const userColor = entry.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder().setTitle(`📜 Historial de nombres de ${entry.robloxUsername}`)
-    .setColor(0x5865F2)
+    .setColor(userColor)
     .setDescription(history.length ? history.map((h, i) => `**${i + 1}.** ${h.name}`).join('\n') : '_Sin historial de nombres anteriores_')
     .setFooter({ text: 'Nombres anteriores que tuvo esta cuenta de Roblox' })] });
 }
@@ -848,7 +937,7 @@ async function cmdBuscar(ctx, username) {
   if (!p) return ctx.reply({ content: t(lang, 'error_generic'), ephemeral: true });
   const age = Math.floor((Date.now() - new Date(p.created)) / 86400000);
   ctx.reply({ embeds: [new EmbedBuilder().setTitle(`🔍 ${p.displayName}  ·  @${p.name}`)
-    .setURL(`https://www.roblox.com/users/${u.id}/profile`).setColor(0xEB459E).setThumbnail(av)
+    .setURL(`https://www.roblox.com/users/${u.id}/profile`).setColor(0x1900ff).setThumbnail(av)
     .addFields(
       { name: '🆔 ID',          value: `\`${u.id}\``, inline: true },
       { name: '📅 Días',        value: `${age}`,       inline: true },
@@ -867,7 +956,7 @@ async function cmdWhoisRoblox(ctx, robloxId) {
   const avatarUrl = await roblox.getAvatar(robloxId);
   const embed = new EmbedBuilder()
     .setTitle(`🔍 ID de Roblox: ${robloxId}`)
-    .setColor(0xEB459E).setThumbnail(avatarUrl)
+    .setColor(0x1900ff).setThumbnail(avatarUrl)
     .addFields(
       { name: '👤 Nombre',       value: `**${profile.displayName}** (@${profile.name})`, inline: true },
       { name: '🆔 ID',           value: `\`${robloxId}\``,  inline: true },
@@ -885,9 +974,10 @@ async function cmdOutfit(ctx, targetUser) {
   if (!entry) return ctx.reply({ content: '❌ Sin cuenta vinculada.', ephemeral: true });
   const outfit = await roblox.getOutfit(entry.robloxId);
   if (!outfit) return ctx.reply({ content: '❌ No se pudo obtener el outfit.', ephemeral: true });
+  const userColor = entry.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(`👕 Outfit de ${entry.robloxUsername}`)
-    .setColor(0x5865F2)
+    .setColor(userColor)
     .setDescription(`**${outfit.name}**`)
     .setImage(outfit.imageUrl)
     .setFooter({ text: 'Ropa actual en Roblox' });
@@ -899,9 +989,10 @@ async function cmdRAP(ctx, targetUser) {
   const entry  = await db.getUser(target.id);
   if (!entry) return ctx.reply({ content: '❌ Sin cuenta vinculada.', ephemeral: true });
   const rap = await roblox.getRAP(entry.robloxId);
+  const userColor = entry.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(`💰 Valor RAP de ${entry.robloxUsername}`)
-    .setColor(0x00B0F4)
+    .setColor(userColor)
     .addFields(
       { name: 'Valor estimado', value: `${rap.value.toLocaleString()} R$`, inline: true },
       { name: 'Limiteds', value: `${rap.limiteds.length}`, inline: true },
@@ -920,10 +1011,12 @@ async function cmdJuego(ctx, query) {
   const games = await roblox.searchGame(clean);
   if (!games.length) return ctx.reply({ content: '❌ No encontré juegos con ese nombre en Roblox.', ephemeral: true });
   const game = games[0];
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder()
     .setTitle(`🎮 ${game.name}`)
     .setURL(`https://www.roblox.com/games/${game.placeId}`)
-    .setColor(0x00B0F4)
+    .setColor(userColor)
     .addFields(
       { name: '👥 Jugando ahora', value: `${game.playerCount ?? 'N/A'}`, inline: true },
       { name: '❤️ Likes',         value: `${game.totalUpVotes ?? 'N/A'}`, inline: true },
@@ -942,13 +1035,14 @@ async function cmdHistorial(ctx) {
   if (!entry) return ctx.reply({ content: '❌ No tienes cuenta vinculada.', ephemeral: true });
   const history = await db.getHistory(ctx.userId) ?? [];
   if (!history.length) return ctx.reply('📜 Sin historial aún.\nSe registra automáticamente cuando usas `/estado` mientras juegas en Roblox.');
+  const userColor = entry.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(`📜 Historial de juegos de ${entry.robloxUsername}`)
     .setDescription(history.map((h, i) => {
       const date = new Date(h.playedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
       return `**${i + 1}.** [${h.gameName}](https://www.roblox.com/games/${h.placeId})\n› ${date}`;
     }).join('\n\n'))
-    .setColor(0x5865F2)
+    .setColor(userColor)
     .setFooter({ text: `${history.length}/20 registrados · Se actualiza con /estado` }).setTimestamp();
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('clear_history').setLabel('🗑️ Borrar historial').setStyle(ButtonStyle.Danger),
@@ -970,6 +1064,8 @@ async function cmdCatalogo(ctx, query) {
   if (!clean) return ctx.reply({ content: '❌ Uso: `/catalogo <nombre del item>`', ephemeral: true });
   const items = await roblox.searchCatalog(clean);
   if (!items.length) return ctx.reply({ content: '❌ No encontré items con ese nombre en el catálogo.', ephemeral: true });
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   const pages = [];
   for (let i = 0; i < Math.min(items.length, 5); i++) {
     const item = items[i];
@@ -980,7 +1076,7 @@ async function cmdCatalogo(ctx, query) {
     const embed = new EmbedBuilder()
       .setTitle(`🛍️ ${item.name}`)
       .setURL(`https://www.roblox.com/catalog/${item.id}`)
-      .setColor(0x00B0F4);
+      .setColor(userColor);
     if (thumb) embed.setThumbnail(thumb);
     embed.addFields(
       { name: '🆔 ID',       value: `\`${item.id}\``,                              inline: true },
@@ -1001,10 +1097,12 @@ async function cmdMuroGrupo(ctx, groupId) {
   ]);
   if (!groupInfo) return ctx.reply({ content: '❌ No encontré ese grupo en Roblox. Verifica el ID.', ephemeral: true });
   if (!posts.length) return ctx.reply(`El muro del grupo **${groupInfo.name}** está vacío o es privado.`);
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(`📋 Muro de ${groupInfo.name}`)
     .setURL(`https://www.roblox.com/groups/${groupId}`)
-    .setColor(0x5865F2)
+    .setColor(userColor)
     .setDescription(
       posts.map((p, i) => {
         const author = p.poster?.user?.username ?? 'Desconocido';
@@ -1066,6 +1164,7 @@ async function cmdLFG(ctx, gameName, slots) {
   const makeLFGEmbed = (data) => {
     const filled = data.members.length;
     const bar    = '🟢'.repeat(filled) + '⬛'.repeat(data.slots - filled);
+    const userColor = entry.profileColor || 0x1900ff;
     return new EmbedBuilder()
       .setTitle(`🎮 LFG — ${data.gameName}`)
       .setColor(filled >= data.slots ? 0xED4245 : 0x57F287)
@@ -1123,10 +1222,11 @@ async function cmdSugerencia(ctx, text) {
   const channel = await ctx.guild.channels.fetch(config.suggestionChannelId).catch(() => null);
   if (!channel) return ctx.reply({ content: '❌ No pude encontrar el canal de sugerencias.', ephemeral: true });
   const entry = await db.getUser(ctx.userId);
+  const userColor = entry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle('💡 Nueva sugerencia')
     .setDescription(clean)
-    .setColor(0x5865F2)
+    .setColor(userColor)
     .addFields(
       { name: '👤 Autor',      value: `<@${ctx.userId}> (${ctx.username})`, inline: true },
       { name: '🎮 Roblox',     value: entry ? `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)` : '_No vinculado_', inline: true },
@@ -1172,7 +1272,9 @@ async function cmdSetSuggestions(ctx, channelId) {
 // ── PREMIUM ────────────────────────────────────────────────────
 async function cmdPremiumStatus(ctx) {
   const [premium, active] = await Promise.all([db.getPremium(ctx.userId), isPremium(ctx.userId)]);
-  const embed = new EmbedBuilder();
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
+  const embed = new EmbedBuilder().setColor(userColor);
   if (active) {
     let expText = '';
     let bar = '';
@@ -1191,12 +1293,12 @@ async function cmdPremiumStatus(ctx) {
     embed.setTitle('⭐ Premium activo').setColor(0xFFD700)
       .setDescription(`\`\`\`\n╔══════════════════╗\n║  ⭐ PREMIUM ⭐   ║\n╚══════════════════╝\`\`\`\n**${expText}**\n\n🔔 Alertas ilimitadas · 🎨 /flex · ⚔️ /comparar · 📜 /historial · ⚙️ /syncall · ⏩ Cooldowns x0.5`);
   } else {
-    embed.setTitle('⭐ Plan Premium').setColor(0x99AAB5)
+    embed.setTitle('⭐ Plan Premium')
       .setDescription(
         `\`\`\`\n╔══════════════════╗\n║   PREMIUM PLAN   ║\n╚══════════════════╝\`\`\`\n` +
         `> 🔔 Alertas **ilimitadas** (gratis = 2/día)\n> 🎨 \`/flex\` — Tarjeta de perfil exclusiva\n> ⚔️ \`/comparar\` — Comparar dos cuentas\n> 📜 \`/historial\` — Ver tus juegos recientes\n> ⚙️ \`/syncall\` — Sincronizar todos los roles\n> ⭐ Rol Premium en el servidor\n> ⏩ Cooldowns reducidos a la mitad\n\n` +
-        `**Opciones:**\n\`2 días\` - $0.99\n\`7 días\` - $4.99\n\`30 días\` - $8.99\n\n` +
-        `**[☕ Ko-fi](https://ko-fi.com/${process.env.KOFI_PAGE ?? 'tu_pagina'})**\n\nPon tu Discord ID en el mensaje de donación:\n\`\`\`${ctx.userId}\`\`\``
+        `**Planes:**\n\`7 días\` - $1.99\n\`30 días\` - $4.99\n\n` +
+        `Usa \`/buy\` para comprar con PayPal.`
       );
   }
   ctx.reply({ embeds: [embed] });
@@ -1245,8 +1347,9 @@ async function cmdComparar(ctx, targetUser1, targetUser2) {
   const age1   = Math.floor((Date.now() - new Date(p1.created)) / 86400000);
   const age2   = Math.floor((Date.now() - new Date(p2.created)) / 86400000);
   const w = (a, b) => a > b ? '🏆' : a < b ? '💀' : '🤝';
+  const userColor = e1.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder().setTitle(`⚔️ ${p1.name}  vs  ${p2.name}`)
-    .setColor(0x5865F2).setThumbnail(av1)
+    .setColor(userColor).setThumbnail(av1)
     .setDescription(`Grupos en común: **${common.length}**${common.length ? ` (${common.slice(0,3).map(g=>g.group.name).join(', ')})` : ''}`)
     .addFields(
       { name: `👤 ${p1.name}`,                  value: '\u200B', inline: true }, { name: '⚔️', value: '\u200B', inline: true }, { name: `👤 ${p2.name}`,                  value: '\u200B', inline: true },
@@ -1272,10 +1375,11 @@ async function cmdFlex(ctx) {
   const age  = Math.floor((Date.now() - new Date(profile.created)) / 86400000);
   const rank = getRank(eco?.points ?? 0);
   const achList = (eco?.achievements ?? []).map(id => ACHIEVEMENTS.find(a => a.id === id)?.name ?? '').filter(Boolean);
+  const userColor = entry.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(`✨ ${profile.displayName}`)
     .setDescription(`\`\`\`\n╔════════════════════════════╗\n║     TARJETA DE PERFIL      ║\n╚════════════════════════════╝\`\`\`\n*${profile.description?.slice(0, 120) || 'Sin descripción'}*`)
-    .setColor(0xFFD700).setImage(avatarFull)
+    .setColor(userColor).setImage(avatarFull)
     .addFields(
       { name: '🎮 Estado',     value: label,                   inline: true },
       { name: '📅 Días',       value: `${age}`,                 inline: true },
@@ -1303,9 +1407,10 @@ async function cmdMiStats(ctx) {
   const stats = await db.getGameStats(ctx.userId) ?? { games: {} };
   const games = Object.entries(stats.games).sort((a, b) => b[1].count - a[1].count).slice(0, 10);
   if (!games.length) return ctx.reply({ content: '📊 Aún no hay estadísticas. Juega Roblox y usa `/estado`.', ephemeral: true });
+  const userColor = entry.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(`📊 Estadísticas de juego de ${entry.robloxUsername}`)
-    .setColor(0x5865F2)
+    .setColor(userColor)
     .setDescription(games.map(([name, data], i) => `**${i+1}.** ${name} — **${data.count}** sesión${data.count !== 1 ? 'es' : ''}`).join('\n'))
     .setFooter({ text: 'Basado en tu historial de /estado' });
   ctx.reply({ embeds: [embed] });
@@ -1332,9 +1437,11 @@ async function cmdAlts(ctx) {
   if (!await isPremium(ctx.userId)) return premiumEmbed(ctx);
   const alts = await db.getAlts(ctx.userId) ?? [];
   if (!alts.length) return ctx.reply({ content: '❌ No tienes alts vinculadas. Usa `/addalt <usuario>`.', ephemeral: true });
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle('👥 Tus cuentas alt')
-    .setColor(0x5865F2)
+    .setColor(userColor)
     .setDescription(alts.map((a, i) => `**${i+1}.** [${a.displayName}](https://www.roblox.com/users/${a.id}/profile) (@${a.name})`).join('\n'));
   ctx.reply({ embeds: [embed] });
 }
@@ -1352,8 +1459,10 @@ async function cmdPuntos(ctx, targetUser) {
   const eco    = await db.getEconomy(target.id) ?? { points: 0, totalEarned: 0, streak: 0 };
   const rank   = getRank(eco.points ?? 0);
   const bar    = rank.next ? `${progressBar(eco.points ?? 0, rank.next)} ${eco.points}/${rank.next}` : '💎 ¡Rango máximo!';
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder().setTitle(`💰 Puntos de ${target.username ?? ctx.username}`)
-    .setColor(rank.color)
+    .setColor(userColor)
     .addFields(
       { name: '💰 Puntos actuales', value: `**${eco.points ?? 0}**`,      inline: true },
       { name: '📈 Total ganado',    value: `**${eco.totalEarned ?? 0}**`,  inline: true },
@@ -1363,7 +1472,7 @@ async function cmdPuntos(ctx, targetUser) {
 }
 
 async function cmdDaily(ctx) {
-  const eco  = await db.getEconomy(ctx.userId) ?? { points: 0, lastDaily: null, totalEarned: 0, streak: 0 };
+  const eco  = await db.getEconomy(ctx.userId) ?? { points: 0, lastDaily: null, totalEarned: 0, streak: 0, dailyClaims: 0 };
   const now  = new Date();
   const last = eco.lastDaily ? new Date(eco.lastDaily) : null;
   if (last && now - last < 86400000) {
@@ -1381,10 +1490,12 @@ async function cmdDaily(ctx) {
   eco.points       = (eco.points ?? 0) + reward;
   eco.lastDaily    = now.toISOString();
   eco.totalEarned  = (eco.totalEarned ?? 0) + reward;
+  eco.dailyClaims  = (eco.dailyClaims ?? 0) + 1;
   await db.saveEconomy(ctx.userId, eco);
   const user    = await db.getUser(ctx.userId);
   const newAchs = await checkAchievements(ctx.userId, eco, user);
   const rank    = getRank(eco.points);
+  const userColor = user?.profileColor || 0x1900ff;
   const embed   = new EmbedBuilder().setTitle('🎁 ¡Daily reclamado!').setColor(0x57F287)
     .addFields(
       { name: '💰 Ganaste',  value: `**${reward} puntos**`,   inline: true },
@@ -1401,8 +1512,10 @@ async function cmdLogros(ctx, targetUser) {
   const target  = targetUser ?? { id: ctx.userId, username: ctx.username };
   const eco     = await db.getEconomy(target.id) ?? {};
   const achieved = eco.achievements ?? [];
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder().setTitle(`🏅 Logros de ${target.username ?? ctx.username}`)
-    .setColor(0xFFD700)
+    .setColor(userColor)
     .setDescription(ACHIEVEMENTS.map(a =>
       `${achieved.includes(a.id) ? '✅' : '🔒'} **${a.name}**\n› _${a.desc}_`
     ).join('\n\n'))
@@ -1418,6 +1531,8 @@ async function cmdCoinFlip(ctx, betStr) {
   eco.points    = (eco.points ?? 0) + (win ? bet : -bet);
   eco.totalEarned = win ? (eco.totalEarned ?? 0) + bet : eco.totalEarned;
   await db.saveEconomy(ctx.userId, eco);
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder()
     .setTitle(win ? '🎉 ¡Ganaste el coinflip!' : '💀 Perdiste el coinflip')
     .setColor(win ? 0x57F287 : 0xED4245)
@@ -1443,8 +1558,14 @@ async function cmdRob(ctx, targetUser) {
   if (!targetUser) return ctx.reply({ content: '❌ Menciona a un usuario.', ephemeral: true });
   if (targetUser.id === ctx.userId) return ctx.reply({ content: '❌ No puedes robarte a ti mismo.', ephemeral: true });
   
+  // Mensajes personalizados
+  if (targetUser.id === process.env.BOT_OWNER_ID) {
+    if (ctx.userId === '752391528475000933') {
+      return ctx.reply({ content: '¿Como se atreve un simple femboy a morder la mano su alfa? 🥵', ephemeral: true });
+    }
+    return ctx.reply({ content: '👑 No puedes robarle a tu propio rey, plebeyo.', ephemeral: true });
+  }
   if (ctx.userId === process.env.BOT_OWNER_ID) return ctx.reply({ content: '👑 El dueño no necesita robar.', ephemeral: true });
-  if (targetUser.id === process.env.BOT_OWNER_ID) return ctx.reply({ content: '❌ No puedes robar al dueño del bot.', ephemeral: true });
 
   if (await isJailed(ctx.userId)) {
     const jailed = await redisGet(`jailed:${ctx.userId}`);
@@ -1456,7 +1577,7 @@ async function cmdRob(ctx, targetUser) {
     return ctx.reply({ content: `❌ No puedes robar a **${targetUser.username}** porque está bajo protección carcelaria.`, ephemeral: true });
   }
 
-  const eco = await db.getEconomy(ctx.userId) ?? { points: 0 };
+  const eco = await db.getEconomy(ctx.userId) ?? { points: 0, successfulRobs: 0, failedRobs: 0, totalStolen: 0, timesJailed: 0, bailPaidCount: 0 };
   const targetEco = await db.getEconomy(targetUser.id) ?? { points: 0 };
   
   if (targetEco.points < 50) return ctx.reply({ content: `❌ **${targetUser.username}** no tiene suficientes puntos para robar (mínimo 50).`, ephemeral: true });
@@ -1468,23 +1589,42 @@ async function cmdRob(ctx, targetUser) {
   if (success) {
     targetEco.points -= amount;
     eco.points += amount;
+    eco.successfulRobs = (eco.successfulRobs ?? 0) + 1;
+    eco.totalStolen = (eco.totalStolen ?? 0) + amount;
     await Promise.all([db.saveEconomy(ctx.userId, eco), db.saveEconomy(targetUser.id, targetEco)]);
-    await ctx.reply({ embeds: [new EmbedBuilder().setTitle('🦹 ¡Robo exitoso!').setColor(0x57F287).setDescription(`Robaste **${amount}** puntos a **${targetUser.username}**.`)] });
+    
+    const gifUrl = await getAnimeGif('kick');
+    const embed = new EmbedBuilder()
+      .setTitle('🦹 ¡Robo exitoso!')
+      .setColor(0x57F287)
+      .setDescription(`Robaste **${amount}** puntos a **${targetUser.username}**.`);
+    if (gifUrl) embed.setImage(gifUrl);
+    await ctx.reply({ embeds: [embed] });
+    
+    // Check achievements after successful rob
+    const user = await db.getUser(ctx.userId);
+    await checkAchievements(ctx.userId, eco, user);
   } else {
     const fine = Math.min(100, eco.points);
     eco.points -= fine;
+    eco.failedRobs = (eco.failedRobs ?? 0) + 1;
     await db.saveEconomy(ctx.userId, eco);
     
     const until = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    eco.timesJailed = (eco.timesJailed ?? 0) + 1;
+    await db.saveEconomy(ctx.userId, eco);
     await redisSet(`jailed:${ctx.userId}`, { until, reason: 'robo_fallido' });
     
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('pay_bail').setLabel('💰 Pagar fianza (200 monedas)').setStyle(ButtonStyle.Primary),
-    );
+    const gifUrl = await getAnimeGif('cry');
     const embed = new EmbedBuilder()
       .setTitle('🚔 ¡Robo fallido!')
       .setColor(0xED4245)
       .setDescription(`Fallaste al robar a **${targetUser.username}**.\nMulta: **${fine}** monedas.\nEstás **encarcelado por 1 hora**.\n\nPuedes pagar 200 monedas para salir inmediatamente.`);
+    if (gifUrl) embed.setImage(gifUrl);
+    
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('pay_bail').setLabel('💰 Pagar fianza (200 monedas)').setStyle(ButtonStyle.Primary),
+    );
     
     const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
     if (!msg) return;
@@ -1492,17 +1632,26 @@ async function cmdRob(ctx, targetUser) {
     const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 3600000 });
     collector.on('collect', async (i) => {
       if (i.user.id !== ctx.userId) return i.reply({ content: '❌ Solo el encarcelado puede pagar la fianza.', ephemeral: true });
-      const userEco = await db.getEconomy(ctx.userId) ?? { points: 0 };
+      const userEco = await db.getEconomy(ctx.userId) ?? { points: 0, bailPaidCount: 0 };
       if (userEco.points < 200) {
         return i.reply({ content: `❌ Necesitas 200 monedas. Tienes ${userEco.points}.`, ephemeral: true });
       }
       userEco.points -= 200;
+      userEco.bailPaidCount = (userEco.bailPaidCount ?? 0) + 1;
       await db.saveEconomy(ctx.userId, userEco);
       await redisDel(`jailed:${ctx.userId}`);
+      
+      const user = await db.getUser(ctx.userId);
+      await checkAchievements(ctx.userId, userEco, user);
+      
       await i.update({ embeds: [embed.setFooter({ text: '✅ Fianza pagada. Estás libre.' }).setColor(0x57F287)], components: [] });
       collector.stop();
     });
     collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
+    
+    // Check achievements after failed rob
+    const user = await db.getUser(ctx.userId);
+    await checkAchievements(ctx.userId, eco, user);
   }
 }
 
@@ -1516,9 +1665,11 @@ async function cmdTopLocal(ctx) {
   }
   ecoList.sort((a, b) => b.points - a.points);
   const top10 = ecoList.slice(0, 10);
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(t(await getGuildLang(ctx.guild.id), 'lb_local_title'))
-    .setColor(0xFFD700)
+    .setColor(userColor)
     .setDescription(top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** pts`).join('\n') || 'No hay datos aún.');
   ctx.reply({ embeds: [embed] });
 }
@@ -1527,9 +1678,11 @@ async function cmdTopGlobal(ctx) {
   const global = await redisGet('leaderboard_global') ?? [];
   global.sort((a, b) => b.points - a.points);
   const top10 = global.slice(0, 10);
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(t(await getGuildLang(ctx.guild?.id), 'lb_global_title'))
-    .setColor(0x00B0F4)
+    .setColor(userColor)
     .setDescription(top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** pts`).join('\n') || 'No hay datos aún.');
   ctx.reply({ embeds: [embed] });
 }
@@ -1543,18 +1696,47 @@ async function updateGlobalLeaderboard(userId, username, points) {
   await redisSet('leaderboard_global', global.slice(0, 100));
 }
 
-// ── TIENDA ────────────────────────────────────────────────────
+// ── TIENDA (30+ colores) ─────────────────────────────────────
 const SHOP_ITEMS = [
-  { id: 'color_red', name: 'Color de perfil Rojo', cost: 500, type: 'color', value: 0xED4245 },
-  { id: 'color_blue', name: 'Color de perfil Azul', cost: 500, type: 'color', value: 0x5865F2 },
-  { id: 'color_gold', name: 'Color de perfil Dorado', cost: 1000, type: 'color', value: 0xFFD700 },
-  { id: 'badge_vip', name: 'Insignia VIP', cost: 2000, type: 'badge' },
+  { id: 'color_red', name: '🔴 Rojo', cost: 500, type: 'color', value: 0xED4245 },
+  { id: 'color_blue', name: '🔵 Azul', cost: 500, type: 'color', value: 0x5865F2 },
+  { id: 'color_green', name: '🟢 Verde', cost: 500, type: 'color', value: 0x57F287 },
+  { id: 'color_yellow', name: '🟡 Amarillo', cost: 500, type: 'color', value: 0xFEE75C },
+  { id: 'color_purple', name: '🟣 Morado', cost: 500, type: 'color', value: 0x9B59B6 },
+  { id: 'color_orange', name: '🟠 Naranja', cost: 500, type: 'color', value: 0xE67E22 },
+  { id: 'color_pink', name: '💗 Rosa', cost: 500, type: 'color', value: 0xFF69B4 },
+  { id: 'color_cyan', name: '🔷 Cian', cost: 500, type: 'color', value: 0x00FFFF },
+  { id: 'color_lime', name: '🍏 Lima', cost: 500, type: 'color', value: 0x00FF00 },
+  { id: 'color_magenta', name: '🌸 Magenta', cost: 500, type: 'color', value: 0xFF00FF },
+  { id: 'color_brown', name: '🤎 Marrón', cost: 500, type: 'color', value: 0x8B4513 },
+  { id: 'color_navy', name: '🌙 Azul marino', cost: 500, type: 'color', value: 0x000080 },
+  { id: 'color_teal', name: '🦚 Verde azulado', cost: 500, type: 'color', value: 0x008080 },
+  { id: 'color_olive', name: '🫒 Oliva', cost: 500, type: 'color', value: 0x808000 },
+  { id: 'color_maroon', name: '🍷 Granate', cost: 500, type: 'color', value: 0x800000 },
+  { id: 'color_coral', name: '🐠 Coral', cost: 500, type: 'color', value: 0xFF7F50 },
+  { id: 'color_salmon', name: '🍣 Salmón', cost: 500, type: 'color', value: 0xFA8072 },
+  { id: 'color_gold', name: '🥇 Dorado', cost: 1000, type: 'color', value: 0xFFD700 },
+  { id: 'color_silver', name: '🥈 Plateado', cost: 1000, type: 'color', value: 0xC0C0C0 },
+  { id: 'color_bronze', name: '🥉 Bronce', cost: 1000, type: 'color', value: 0xCD7F32 },
+  { id: 'color_lavender', name: '💜 Lavanda', cost: 500, type: 'color', value: 0xE6E6FA },
+  { id: 'color_mint', name: '🌿 Menta', cost: 500, type: 'color', value: 0x98FF98 },
+  { id: 'color_peach', name: '🍑 Durazno', cost: 500, type: 'color', value: 0xFFDAB9 },
+  { id: 'color_skyblue', name: '☀️ Azul cielo', cost: 500, type: 'color', value: 0x87CEEB },
+  { id: 'color_indigo', name: '🌀 Índigo', cost: 500, type: 'color', value: 0x4B0082 },
+  { id: 'color_violet', name: '🔮 Violeta', cost: 500, type: 'color', value: 0xEE82EE },
+  { id: 'color_turquoise', name: '💎 Turquesa', cost: 500, type: 'color', value: 0x40E0D0 },
+  { id: 'color_chocolate', name: '🍫 Chocolate', cost: 500, type: 'color', value: 0xD2691E },
+  { id: 'color_tomato', name: '🍅 Tomate', cost: 500, type: 'color', value: 0xFF6347 },
+  { id: 'color_plum', name: '🍇 Ciruela', cost: 500, type: 'color', value: 0xDDA0DD },
+  { id: 'badge_vip', name: '🌟 Insignia VIP', cost: 2000, type: 'badge' },
 ];
 
 async function cmdTienda(ctx) {
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle('🛒 Tienda de Puntos')
-    .setColor(0x5865F2)
+    .setColor(userColor)
     .setDescription(SHOP_ITEMS.map(item => `**${item.name}** — \`${item.cost}\` pts\nID: \`${item.id}\``).join('\n\n'))
     .setFooter({ text: 'Usa /comprar <id> para adquirir' });
   ctx.reply({ embeds: [embed] });
@@ -1565,18 +1747,27 @@ async function cmdComprar(ctx, itemId) {
   if (!item) return ctx.reply({ content: '❌ Item no encontrado. Usa /tienda para ver.', ephemeral: true });
   
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
-  const eco = await db.getEconomy(ctx.userId) ?? { points: 0 };
-  
-  if (!isOwner && eco.points < item.cost) return ctx.reply({ content: `❌ Necesitas ${item.cost} puntos. Tienes ${eco.points}.`, ephemeral: true });
-  
-  if (!isOwner) eco.points -= item.cost;
+  const eco = await db.getEconomy(ctx.userId) ?? { points: 0, shopPurchases: 0 };
   const profile = await db.getUser(ctx.userId) ?? {};
   if (!profile.inventory) profile.inventory = [];
+  
   if (profile.inventory.includes(item.id)) return ctx.reply({ content: '❌ Ya tienes este item.', ephemeral: true });
+  
+  if (!isOwner) {
+    if (eco.points < item.cost) return ctx.reply({ content: `❌ Necesitas ${item.cost} puntos. Tienes ${eco.points}.`, ephemeral: true });
+    eco.points -= item.cost;
+    eco.shopPurchases = (eco.shopPurchases ?? 0) + 1;
+  }
+  
   profile.inventory.push(item.id);
   if (item.type === 'color') profile.profileColor = item.value;
   await db.saveUser(ctx.userId, profile);
   if (!isOwner) await db.saveEconomy(ctx.userId, eco);
+  
+  // Check achievements
+  const user = await db.getUser(ctx.userId);
+  await checkAchievements(ctx.userId, eco, user);
+  
   ctx.reply({ content: isOwner ? `👑 Como dueño, recibiste **${item.name}** gratis.` : `✅ Compraste **${item.name}** por ${item.cost} puntos.`, ephemeral: true });
 }
 
@@ -1607,10 +1798,12 @@ async function cmdTrivia(ctx, category) {
   }
 
   const catEmoji = { Roblox: '🎮', Matemáticas: '🔢', Ciencias: '🔬', Historia: '📜', Geografía: '🌍', Tecnología: '💻', General: '🎯' };
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(`${catEmoji[question.cat] ?? '🎲'} Trivia — ${question.cat}`)
     .setDescription(`**${question.q}**`)
-    .setColor(0x00B0F4)
+    .setColor(userColor)
     .setFooter({ text: `Escribe tu respuesta · 30 segundos · ${count + 1}/${limit} hoy` });
 
   await ctx.reply({ embeds: [embed] });
@@ -1628,12 +1821,15 @@ async function cmdTrivia(ctx, category) {
       await redisSet(countKey, count + 1);
       await fetch(`${REDIS_URL}/expire/${countKey}/86400`, { headers: { Authorization: `Bearer ${REDIS_TOKEN}` } });
       
-      const eco = await db.getEconomy(m.author.id) ?? { points: 0, totalEarned: 0 };
+      const eco = await db.getEconomy(m.author.id) ?? { points: 0, totalEarned: 0, triviaWins: 0 };
       const reward = 5;
       eco.points = (eco.points ?? 0) + reward;
       eco.totalEarned = (eco.totalEarned ?? 0) + reward;
       eco.triviaWins = (eco.triviaWins ?? 0) + 1;
       await db.saveEconomy(m.author.id, eco);
+      
+      const user = await db.getUser(m.author.id);
+      await checkAchievements(m.author.id, eco, user);
       
       await m.reply(`✅ ¡Correcto! La respuesta era **${question.a}**\n🎁 <@${m.author.id}> gana **+${reward} puntos**! Saldo: **${eco.points}**\n📊 ${count + 1}/${limit} preguntas hoy.`);
     }
@@ -1662,8 +1858,9 @@ async function cmdWhois(ctx, targetUser) {
   const entry = await db.getUser(targetUser.id);
   if (!entry) return ctx.reply({ content: `❌ **${targetUser.username}** no tiene cuenta de Roblox vinculada.`, ephemeral: true });
   const [premium, avatarUrl] = await Promise.all([isPremium(targetUser.id), roblox.getAvatar(entry.robloxId)]);
+  const userColor = entry.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder().setTitle(`🔍 Whois: ${targetUser.username}`)
-    .setColor(0x5865F2).setThumbnail(avatarUrl)
+    .setColor(userColor).setThumbnail(avatarUrl)
     .addFields(
       { name: '🎮 Cuenta de Roblox', value: `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)`, inline: true },
       { name: '🆔 ID de Roblox',     value: `\`${entry.robloxId}\``,                                                               inline: true },
@@ -1694,7 +1891,9 @@ async function cmdAlertas(ctx, sub, targetUser) {
     const isPremiumUser = await isPremium(ctx.userId);
     if (!isPremiumUser) alerts = filterAlertsByResetPeriod(alerts);
     if (!alerts.length) return ctx.reply({ content: '❌ No tienes alertas activas (las gratuitas se reinician a las 20:00 RD).', ephemeral: true });
-    ctx.reply({ embeds: [new EmbedBuilder().setTitle('🔔 Tus alertas de presencia').setColor(0x5865F2)
+    const userEntry = await db.getUser(ctx.userId);
+    const userColor = userEntry?.profileColor || 0x1900ff;
+    ctx.reply({ embeds: [new EmbedBuilder().setTitle('🔔 Tus alertas de presencia').setColor(userColor)
       .setDescription(alerts.map((a, i) => `**${i + 1}.** **${a.watchedUsername}** (\`${a.watchedRobloxId}\`)${a.createdAt ? ` · ${new Date(a.createdAt).toLocaleTimeString('es-ES')}` : ''}`).join('\n'))
       .setFooter({ text: 'Recibirás un ping cuando cambie su estado' })] });
     return;
@@ -1777,7 +1976,9 @@ async function cmdUnbindRole(ctx, groupId) {
 
 async function cmdListRoles(ctx) {
   const config = await db.getGuildConf(ctx.guild.id);
-  ctx.reply({ embeds: [new EmbedBuilder().setTitle('⚙️ Configuración de roles').setColor(0x5865F2)
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
+  ctx.reply({ embeds: [new EmbedBuilder().setTitle('⚙️ Configuración de roles').setColor(userColor)
     .addFields(
       { name: '✅ Rol de verificado',      value: config?.verifiedRoleId ? `<@&${config.verifiedRoleId}>` : '_No configurado_' },
       { name: '⭐ Rol Premium',             value: config?.premiumRoleId  ? `<@&${config.premiumRoleId}>`  : '_No configurado_' },
@@ -1837,7 +2038,7 @@ async function cmdSetPrefix(ctx, prefix) {
   ctx.reply(`✅ Prefijo del servidor cambiado a \`${prefix}\``);
 }
 
-// ── AYUDA ─────────────────────────────────────────────────────
+// ── AYUDA (color #1900ff, sin comandos owner para no-owner) ──
 const HELP_CATEGORIES = {
   '🔐 Verificación': {
     description: 'Conecta tu cuenta de Roblox con Discord para acceder a todas las funciones del bot.',
@@ -1877,6 +2078,7 @@ const HELP_CATEGORIES = {
       { name: '/alts ⭐', desc: 'Ver alts vinculadas.' },
       { name: '/setflexbg <url> ⭐', desc: 'Fondo personalizado para /flex.' },
       { name: '/syncall ⭐', desc: 'Sincronizar todos los roles.' },
+      { name: '/buy', desc: 'Comprar Premium con PayPal (7 o 30 días).' },
     ],
   },
   '💰 Economía': {
@@ -1887,7 +2089,7 @@ const HELP_CATEGORIES = {
       { name: '/logros [@usuario]', desc: 'Logros desbloqueados.' },
       { name: '/toplocal', desc: 'Top 10 del servidor.' },
       { name: '/topglobal', desc: 'Top 10 global.' },
-      { name: '/tienda', desc: 'Ver tienda de puntos.' },
+      { name: '/tienda', desc: 'Ver tienda de puntos (30+ colores).' },
       { name: '/comprar <id>', desc: 'Comprar item de la tienda.' },
       { name: '/rob @usuario', desc: 'Intentar robar puntos.' },
       { name: '!pay @usuario <cantidad>', desc: 'Transferir puntos.' },
@@ -1919,6 +2121,7 @@ const HELP_CATEGORIES = {
       { name: '!alertas quitar @usuario', desc: 'Eliminar alerta.' },
       { name: '!permitir presencia|perfil', desc: 'Hacer público.' },
       { name: '!bloquear presencia|perfil', desc: 'Hacer privado.' },
+      { name: '/dms', desc: 'Activar/desactivar mensajes directos del bot.' },
     ],
   },
   '🔍 Moderación': {
@@ -1952,34 +2155,40 @@ const HELP_CATEGORIES = {
       { name: '/setpuntos @usuario <cantidad>', desc: 'Establece puntos.' },
       { name: '/addpuntos @usuario <cantidad>', desc: 'Añade puntos.' },
       { name: '/ownercolor <#HEX>', desc: 'Cambia el color de perfil del owner.' },
-      { name: '/buy', desc: 'Comprar Premium con código (para usuarios).' },
     ],
   },
 };
 
 async function cmdAyuda(ctx) {
-  const categoryKeys = Object.keys(HELP_CATEGORIES);
+  const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
+  const filteredCategories = { ...HELP_CATEGORIES };
+  if (!isOwner) delete filteredCategories['👑 Owner'];
+  const categoryKeys = Object.keys(filteredCategories);
+  
   const makeOverviewEmbed = () => new EmbedBuilder()
-    .setTitle('📋 Ayuda — Bot Roblox v10.6')
-    .setColor(0x5865F2)
+    .setTitle('📋 Ayuda — Bot Roblox v10.7')
+    .setColor(0x1900ff)
     .setDescription('Selecciona una categoría del menú de abajo para ver los comandos y sus descripciones.\n\nTodos los comandos funcionan con `/` (slash), `!` o `?`.')
-    .addFields(...categoryKeys.map(k => ({ name: k, value: HELP_CATEGORIES[k].description, inline: false })))
-    .setFooter({ text: `⭐ = requiere Premium · Ko-fi: ${process.env.KOFI_PAGE ?? 'configura KOFI_PAGE'} · v10.6` });
+    .addFields(...categoryKeys.map(k => ({ name: k, value: filteredCategories[k].description, inline: false })))
+    .setFooter({ text: `⭐ = requiere Premium · PayPal integrado · v10.7` });
+  
   const makeCategoryEmbed = (key) => {
-    const cat = HELP_CATEGORIES[key];
-    return new EmbedBuilder().setTitle(key).setColor(0x5865F2).setDescription(cat.description)
+    const cat = filteredCategories[key];
+    return new EmbedBuilder().setTitle(key).setColor(0x1900ff).setDescription(cat.description)
       .addFields(...cat.commands.map(c => ({ name: c.name, value: c.desc, inline: false })))
       .setFooter({ text: 'Usa el menú de abajo para cambiar de categoría' });
   };
+  
   const select = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId('help_menu')
       .setPlaceholder('📂 Selecciona una categoría...')
       .addOptions([
         { label: '🏠 Vista general', value: '__overview__', description: 'Ver resumen de todas las categorías' },
-        ...categoryKeys.map(k => ({ label: k.slice(0, 25), value: k, description: HELP_CATEGORIES[k].description.slice(0, 50) })),
+        ...categoryKeys.map(k => ({ label: k.slice(0, 25), value: k, description: filteredCategories[k].description.slice(0, 50) })),
       ]),
   );
+  
   const msg = await ctx.replyAndFetch({ embeds: [makeOverviewEmbed()], components: [select] });
   if (!msg) return;
   const collector = msg.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 120000 });
@@ -1992,6 +2201,16 @@ async function cmdAyuda(ctx) {
   collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
 }
 
+// ── DM PERMISSIONS ───────────────────────────────────────────
+async function cmdDMs(ctx, enable) {
+  const entry = await db.getUser(ctx.userId);
+  if (!entry) return ctx.reply({ content: '❌ No tienes cuenta vinculada.', ephemeral: true });
+  const newStatus = enable ?? !(entry.allowDMs ?? true);
+  entry.allowDMs = newStatus;
+  await db.saveUser(ctx.userId, entry);
+  ctx.reply({ content: `✅ Mensajes directos del bot **${newStatus ? 'activados' : 'desactivados'}**.`, ephemeral: true });
+}
+
 // ════════════════════════════════════════════════════════════
 //  COMANDOS EXCLUSIVOS DEL DUEÑO (OWNER)
 // ════════════════════════════════════════════════════════════
@@ -2000,7 +2219,15 @@ async function cmdEncarcelar(ctx, targetUser, horas = 1) {
   if (ctx.userId !== process.env.BOT_OWNER_ID) return ctx.reply({ content: '❌ Solo el dueño del bot.', ephemeral: true });
   const until = new Date(Date.now() + horas * 3600000).toISOString();
   await redisSet(`jailed:${targetUser.id}`, { until, reason: 'owner_action' });
-  ctx.reply(`🔒 **${targetUser.username}** ha sido encarcelado por ${horas} hora(s).`);
+  
+  const gifUrl = await getAnimeGif('handcuff');
+  const embed = new EmbedBuilder()
+    .setTitle('🔒 Usuario encarcelado')
+    .setColor(0xED4245)
+    .setDescription(`**${targetUser.username}** ha sido encarcelado por ${horas} hora(s).`);
+  if (gifUrl) embed.setImage(gifUrl);
+  
+  ctx.reply({ embeds: [embed] });
 }
 
 async function cmdSetPuntos(ctx, targetUser, cantidad) {
@@ -2032,61 +2259,55 @@ async function cmdOwnerColor(ctx, hexColor) {
   ctx.reply(`✅ Color de perfil cambiado a ${hexColor}.`);
 }
 
-// ════════════════════════════════════════════════════════════
-//  COMPRA PREMIUM CON CÓDIGO (KO‑FI)
-// ════════════════════════════════════════════════════════════
-
+// ── COMPRA PREMIUM CON PAYPAL (reemplaza Ko-fi) ───────────────
 async function cmdBuyPremium(ctx) {
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('buy_2d').setLabel('🌟 2 días - $0.99').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('buy_7d').setLabel('⭐ 7 días - $4.99').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('buy_30d').setLabel('💎 30 días - $8.99').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('buy_7d').setLabel('⭐ 7 días - $1.99').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('buy_30d').setLabel('💎 30 días - $4.99').setStyle(ButtonStyle.Danger),
   );
-  
+
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle('🛒 Comprar Premium')
-    .setColor(0xFFD700)
-    .setDescription('Selecciona el plan que deseas adquirir.\n\n**Importante:** Al hacer clic, se generará un código que **debes copiar y pegar en el mensaje de tu donación en Ko‑fi**. Así el sistema activará tu Premium automáticamente.')
-    .setFooter({ text: 'El código expira en 5 minutos' });
-  
+    .setColor(userColor)
+    .setDescription('Selecciona el plan que deseas adquirir. Serás redirigido a PayPal para completar el pago de forma segura.');
+
   const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
   if (!msg) return;
-  
-  const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
+
+  const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
   collector.on('collect', async (i) => {
     if (i.user.id !== ctx.userId) return i.reply({ content: '❌ Solo quien ejecutó el comando.', ephemeral: true });
-    
-    let days, planName, emoji;
-    if (i.customId === 'buy_2d') { days = 2; planName = '2 días'; emoji = '🌟'; }
-    else if (i.customId === 'buy_7d') { days = 7; planName = '7 días'; emoji = '⭐'; }
-    else { days = 30; planName = '30 días'; emoji = '💎'; }
-    
-    const code = 'PREMIUM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    const expires = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-    
-    await redisSet(`pending_premium:${code}`, {
-      userId: ctx.userId,
-      plan: days,
-      planName: planName,
-      expires: expires
-    });
-    
-    const kofiLink = `https://ko-fi.com/${process.env.KOFI_PAGE ?? 'tu_pagina'}`;
+
+    let amount, itemName;
+    if (i.customId === 'buy_7d') { amount = '1.99'; itemName = 'Premium 7 días'; }
+    else { amount = '4.99'; itemName = 'Premium 30 días'; }
+
+    const baseUrl = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:8080';
+    const paypalUrl = `https://www.paypal.com/cgi-bin/webscr?` +
+      `cmd=_xclick&business=${encodeURIComponent(process.env.PAYPAL_EMAIL)}` +
+      `&item_name=${encodeURIComponent(itemName)}` +
+      `&amount=${amount}` +
+      `&currency_code=USD` +
+      `&custom=${ctx.userId}` +
+      `&notify_url=${encodeURIComponent(`${baseUrl}/paypal-webhook`)}` +
+      `&return=${encodeURIComponent('https://discord.com/channels/@me')}` +
+      `&cancel_return=${encodeURIComponent('https://discord.com/channels/@me')}`;
+
     const newEmbed = new EmbedBuilder()
-      .setTitle(`${emoji} Código generado — Plan ${planName}`)
-      .setColor(0x57F287)
-      .setDescription(
-        `**1️⃣ Copia este código:**\n\`\`\`${code}\`\`\`\n` +
-        `**2️⃣** Ve a Ko‑fi y realiza tu donación de **$${days === 2 ? '0.99' : days === 7 ? '4.99' : '8.99'}**.\n` +
-        `**3️⃣** En el mensaje de la donación, **pega el código**.\n\n` +
-        `**[👉 Ir a Ko‑fi ahora](${kofiLink})**\n\n` +
-        `⏰ El código expira en 5 minutos. Si no se usa, deberás generar uno nuevo.`
-      )
-      .setFooter({ text: 'Premium se activará automáticamente tras la donación' });
-    
-    await i.update({ embeds: [newEmbed], components: [] });
+      .setTitle(`🔗 Pago — ${itemName}`)
+      .setColor(0x009CDE)
+      .setDescription(`Haz clic en el botón para pagar **$${amount}** con PayPal.\nEl Premium se activará automáticamente.`)
+      .setFooter({ text: 'Serás redirigido a PayPal' });
+
+    const linkRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setLabel('💳 Pagar con PayPal').setStyle(ButtonStyle.Link).setURL(paypalUrl)
+    );
+
+    await i.update({ embeds: [newEmbed], components: [linkRow] });
   });
-  
+
   collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
 }
 
@@ -2115,7 +2336,7 @@ module.exports = {
   // Moderación
   cmdWhois, cmdSyncAll,
   // Alertas y privacidad
-  cmdAlertas, cmdPermitir, cmdBloquear, cmdActualizar, cmdDesvincular,
+  cmdAlertas, cmdPermitir, cmdBloquear, cmdActualizar, cmdDesvincular, cmdDMs,
   // Configuración
   cmdSetVerifiedRole, cmdSetPremiumRole, cmdBindRole, cmdUnbindRole, cmdListRoles,
   cmdSetWelcome, cmdSetAlertChannel, cmdSetNickname, cmdSetLang, cmdSetPrefix,
