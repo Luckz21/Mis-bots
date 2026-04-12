@@ -1,8 +1,9 @@
 // ============================================================
-//  bot.js  —  v10.7 (MEJORAS MASIVAS)
-//  + PayPal integrado (reemplaza Ko-fi)
-//  + Nuevos comandos: /dms, /buy mejorado
-//  + Colores dinámicos en todos los embeds
+//  bot.js  —  v10.8 (FINAL COMPLETO)
+//  + Sirve archivos estáticos desde /public
+//  + Webhook PayPal funcional
+//  + Comandos slash actualizados (sin /juego)
+//  + Health check para Railway
 // ============================================================
 
 const {
@@ -13,6 +14,8 @@ const {
 } = require('discord.js');
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const cmd  = require('./commands.js');
 const { cooldowns, CooldownManager } = require('./security.js');
 
@@ -59,7 +62,7 @@ async function getGuildPrefix(guildId) {
   } catch { return null; }
 }
 
-// ── Slash commands (actualizados) ─────────────────────────────
+// ── Slash commands (sin /juego, con nuevos comandos) ─────────
 const slashCommands = [
   // Verificación
   new SlashCommandBuilder().setName('verificar').setDescription('Vincula tu cuenta de Roblox con Discord').addStringOption(o => o.setName('usuario').setDescription('Tu nombre de usuario en Roblox').setRequired(true)),
@@ -79,24 +82,22 @@ const slashCommands = [
   new SlashCommandBuilder().setName('outfit').setDescription('Muestra la ropa que lleva puesta actualmente un usuario').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)')),
   new SlashCommandBuilder().setName('rap').setDescription('Estima el valor RAP de los limiteds del usuario').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)')),
   // Roblox
-  new SlashCommandBuilder().setName('juego').setDescription('Busca un juego de Roblox y ve sus estadísticas')
-    .addStringOption(o => o.setName('nombre').setDescription('Nombre del juego').setRequired(true).setAutocomplete(true)),
   new SlashCommandBuilder().setName('catalogo').setDescription('Busca items en el catálogo de Roblox').addStringOption(o => o.setName('item').setDescription('Nombre del item a buscar').setRequired(true)),
   new SlashCommandBuilder().setName('murogrupo').setDescription('Ve las últimas publicaciones del muro de un grupo de Roblox').addStringOption(o => o.setName('grupo_id').setDescription('ID numérico del grupo').setRequired(true)),
   new SlashCommandBuilder().setName('robloxstatus').setDescription('Consulta el estado actual de los servidores de Roblox'),
   new SlashCommandBuilder().setName('sugerencia').setDescription('Envía una sugerencia al canal de sugerencias del servidor').addStringOption(o => o.setName('texto').setDescription('Tu sugerencia').setRequired(true)),
   // Premium
   new SlashCommandBuilder().setName('premium').setDescription('Ver tu estado Premium y cómo activarlo'),
-  new SlashCommandBuilder().setName('flex').setDescription('⭐ Genera tu tarjeta de perfil exclusiva Premium'),
-  new SlashCommandBuilder().setName('historial').setDescription('⭐ Ver tu historial de juegos recientes en Roblox'),
-  new SlashCommandBuilder().setName('comparar').setDescription('⭐ Compara dos cuentas de Roblox lado a lado')
+  new SlashCommandBuilder().setName('flex').setDescription('Genera tu tarjeta de perfil exclusiva'),
+  new SlashCommandBuilder().setName('historial').setDescription('Ver tu historial de juegos recientes en Roblox (Premium)'),
+  new SlashCommandBuilder().setName('comparar').setDescription('Compara dos cuentas de Roblox lado a lado (Premium)')
     .addUserOption(o => o.setName('usuario1').setDescription('Primer usuario').setRequired(true))
     .addUserOption(o => o.setName('usuario2').setDescription('Segundo usuario').setRequired(true)),
-  new SlashCommandBuilder().setName('mistats').setDescription('⭐ Ver tus estadísticas de juego (analytics)'),
-  new SlashCommandBuilder().setName('addalt').setDescription('⭐ Añadir una cuenta alt a tu perfil Premium')
+  new SlashCommandBuilder().setName('mistats').setDescription('Ver tus estadísticas de juego (Premium)'),
+  new SlashCommandBuilder().setName('addalt').setDescription('Añadir una cuenta alt a tu perfil (Premium)')
     .addStringOption(o => o.setName('usuario').setDescription('Nombre de usuario en Roblox').setRequired(true)),
-  new SlashCommandBuilder().setName('alts').setDescription('⭐ Ver tus cuentas alt vinculadas'),
-  new SlashCommandBuilder().setName('setflexbg').setDescription('⭐ Establecer una imagen de fondo para /flex')
+  new SlashCommandBuilder().setName('alts').setDescription('Ver tus cuentas alt vinculadas (Premium)'),
+  new SlashCommandBuilder().setName('setflexbg').setDescription('Establecer una imagen de fondo para /flex (Premium)')
     .addStringOption(o => o.setName('url').setDescription('URL de la imagen (jpg, png, gif)').setRequired(true)),
   // Economía
   new SlashCommandBuilder().setName('puntos').setDescription('Ver tus puntos y rango de economía').addUserOption(o => o.setName('usuario').setDescription('Usuario (opcional)')),
@@ -120,9 +121,13 @@ const slashCommands = [
       { name: '💻 Tecnología', value: 'Tecnología' },
       { name: '🎯 General', value: 'General' },
     )),
+  new SlashCommandBuilder().setName('triviacustom').setDescription('Trivia con preguntas personalizadas')
+    .addSubcommand(sub => sub.setName('add').setDescription('[Owner] Añadir pregunta').addStringOption(o => o.setName('pregunta').setDescription('Pregunta | Respuesta').setRequired(true)))
+    .addSubcommand(sub => sub.setName('list').setDescription('Ver preguntas personalizadas'))
+    .addSubcommand(sub => sub.setName('play').setDescription('Jugar trivia personalizada (5-15 preguntas/día)')),
   // Moderación
   new SlashCommandBuilder().setName('whois').setDescription('Ver qué cuenta de Roblox tiene un usuario de Discord').addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord').setRequired(true)),
-  new SlashCommandBuilder().setName('syncall').setDescription('⭐ Sincronizar roles de todos los miembros verificados'),
+  new SlashCommandBuilder().setName('syncall').setDescription('[Admin] Sincronizar roles de todos los miembros verificados'),
   // DMs
   new SlashCommandBuilder().setName('dms').setDescription('Activar/desactivar mensajes directos del bot')
     .addBooleanOption(o => o.setName('activar').setDescription('True para activar, False para desactivar').setRequired(false)),
@@ -150,7 +155,7 @@ const slashCommands = [
       .addChoices({ name: '🇪🇸 Español', value: 'es' }, { name: '🇺🇸 English', value: 'en' }, { name: '🇧🇷 Português', value: 'pt' }))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder().setName('setprefix').setDescription('[Admin] Cambiar el prefijo para comandos de texto').addStringOption(o => o.setName('prefijo').setDescription('Nuevo prefijo (ej: $)').setRequired(true)).setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
-  new SlashCommandBuilder().setName('setvoicecategory').setDescription('[Premium] Configurar categoría para canales de voz automáticos').addChannelOption(o => o.setName('categoria').setDescription('Categoría de voz').setRequired(true).addChannelTypes(ChannelType.GuildCategory)).setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+  new SlashCommandBuilder().setName('setvoicecategory').setDescription('[Admin] Configurar categoría para canales de voz automáticos').addChannelOption(o => o.setName('categoria').setDescription('Categoría de voz').setRequired(true).addChannelTypes(ChannelType.GuildCategory)).setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   // Owner exclusivos
   new SlashCommandBuilder().setName('activarpremium').setDescription('[Owner] Activar Premium manualmente')
     .addStringOption(o => o.setName('usuario_id').setDescription('ID de Discord del usuario').setRequired(true))
@@ -168,6 +173,8 @@ const slashCommands = [
     .addIntegerOption(o => o.setName('cantidad').setDescription('Cantidad a añadir').setRequired(true)),
   new SlashCommandBuilder().setName('ownercolor').setDescription('[Owner] Cambia el color del perfil del owner')
     .addStringOption(o => o.setName('color').setDescription('Código HEX (#RRGGBB)').setRequired(true)),
+  new SlashCommandBuilder().setName('cambiarcolor').setDescription('[Owner] Cambia tu color de perfil usando ID de tienda')
+    .addStringOption(o => o.setName('id').setDescription('ID del color (ej: color_red)').setRequired(true)),
   // Compra Premium (PayPal)
   new SlashCommandBuilder().setName('buy').setDescription('Comprar Premium con PayPal (7 o 30 días)'),
 ].map(c => c.toJSON());
@@ -196,12 +203,7 @@ function makeCtx(userId, username, guild, replyFn, fetchFn, channelId) {
 // ── Slash commands handler ────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isAutocomplete()) {
-    if (interaction.commandName === 'juego') {
-      const focused = interaction.options.getFocused();
-      if (!focused) return interaction.respond([]);
-      const results = await cmd.roblox.searchGame(focused);
-      await interaction.respond(results.slice(0, 10).map(g => ({ name: g.name, value: g.name })));
-    }
+    // No hay autocomplete ya que eliminamos /juego
     return;
   }
 
@@ -241,7 +243,6 @@ client.on('interactionCreate', async (interaction) => {
       case 'buscar':           await cmd.cmdBuscar(ctx, interaction.options.getString('usuario')); break;
       case 'outfit':           await cmd.cmdOutfit(ctx, interaction.options.getUser('usuario')); break;
       case 'rap':              await cmd.cmdRAP(ctx, interaction.options.getUser('usuario')); break;
-      case 'juego':            await cmd.cmdJuego(ctx, interaction.options.getString('nombre')); break;
       case 'catalogo':         await cmd.cmdCatalogo(ctx, interaction.options.getString('item')); break;
       case 'murogrupo':        await cmd.cmdMuroGrupo(ctx, interaction.options.getString('grupo_id')); break;
       case 'robloxstatus':     await cmd.cmdRobloxStatus(ctx); break;
@@ -263,6 +264,13 @@ client.on('interactionCreate', async (interaction) => {
       case 'comprar':          await cmd.cmdComprar(ctx, interaction.options.getString('id')); break;
       case 'rob':              await cmd.cmdRob(ctx, interaction.options.getUser('usuario')); break;
       case 'trivia':           await cmd.cmdTrivia(ctx, interaction.options.getString('categoria')); break;
+      case 'triviacustom': {
+        const sub = interaction.options.getSubcommand();
+        if (sub === 'add') await cmd.cmdTriviaCustom(ctx, 'add', interaction.options.getString('pregunta'));
+        else if (sub === 'list') await cmd.cmdTriviaCustom(ctx, 'list');
+        else if (sub === 'play') await cmd.cmdTriviaCustom(ctx, 'play');
+        break;
+      }
       case 'whois':            await cmd.cmdWhois(ctx, interaction.options.getUser('usuario')); break;
       case 'syncall':          await cmd.cmdSyncAll(ctx); break;
       case 'dms':              await cmd.cmdDMs(ctx, interaction.options.getBoolean('activar')); break;
@@ -287,6 +295,7 @@ client.on('interactionCreate', async (interaction) => {
       case 'setpuntos':        await cmd.cmdSetPuntos(ctx, interaction.options.getUser('usuario'), interaction.options.getInteger('cantidad')); break;
       case 'addpuntos':        await cmd.cmdAddPuntos(ctx, interaction.options.getUser('usuario'), interaction.options.getInteger('cantidad')); break;
       case 'ownercolor':       await cmd.cmdOwnerColor(ctx, interaction.options.getString('color')); break;
+      case 'cambiarcolor':     await cmd.cmdCambiarColor(ctx, interaction.options.getString('id')); break;
       case 'buy':              await cmd.cmdBuyPremium(ctx); break;
     }
   } catch (e) {
@@ -341,7 +350,6 @@ client.on('messageCreate', async (message) => {
       case 'whoislox':           await cmd.cmdWhoisRoblox(ctx, args[0]); break;
       case 'outfit':             await cmd.cmdOutfit(ctx, users[0]); break;
       case 'rap':                await cmd.cmdRAP(ctx, users[0]); break;
-      case 'juego':              await cmd.cmdJuego(ctx, args.join(' ')); break;
       case 'catalogo':           await cmd.cmdCatalogo(ctx, args.join(' ')); break;
       case 'murogrupo':          await cmd.cmdMuroGrupo(ctx, args[0]); break;
       case 'robloxstatus':       await cmd.cmdRobloxStatus(ctx); break;
@@ -440,17 +448,44 @@ client.on('messageCreate', async (message) => {
 client.on('guildMemberAdd', (member) => cmd.onMemberJoin(member).catch(console.error));
 client.on('guildCreate',    (guild)  => cmd.onGuildAdd(guild).catch(console.error));
 
-// ── Webhook de PayPal (y Health Check) ───────────────────────
+// ── Servidor HTTP (Página web + Webhook PayPal + Health Check) ─
 const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  
+  // Servir archivos estáticos desde /public
+  if (req.method === 'GET') {
+    let filePath = path.join(__dirname, 'public', url.pathname === '/' ? 'index.html' : url.pathname);
+    try {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath);
+        const contentType = {
+          '.html': 'text/html',
+          '.css': 'text/css',
+          '.js': 'application/javascript',
+          '.json': 'application/json',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.gif': 'image/gif',
+          '.svg': 'image/svg+xml',
+          '.ico': 'image/x-icon'
+        }[ext] || 'application/octet-stream';
+        
+        res.writeHead(200, { 'Content-Type': contentType });
+        fs.createReadStream(filePath).pipe(res);
+        return;
+      }
+    } catch (e) {}
+  }
+
   // Health check para Railway
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
+  if (req.method === 'GET' && (url.pathname === '/health')) {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('OK');
     return;
   }
 
   // Webhook de PayPal (IPN)
-  if (req.method === 'POST' && req.url === '/paypal-webhook') {
+  if (req.method === 'POST' && url.pathname === '/paypal-webhook') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
@@ -501,11 +536,8 @@ const server = http.createServer(async (req, res) => {
         console.log(`✅ PayPal: Premium ${days} días activado para ${custom} ($${mcGross})`);
 
         try {
-          const userEntry = await cmd.db?.getUser(custom) || await redisGet(`user:${custom}`);
-          if (userEntry?.allowDMs !== false) {
-            const user = await client.users.fetch(custom);
-            await user.send(`✅ **¡Pago recibido!** Tu Premium de **${days} días** ha sido activado.\nUsa \`/premium\` para verificarlo.`);
-          }
+          const user = await client.users.fetch(custom);
+          await user.send(`✅ **¡Pago recibido!** Tu Premium de **${days} días** ha sido activado.\nUsa \`/premium\` para verificarlo.`);
         } catch {}
 
         res.writeHead(200); res.end();
@@ -517,6 +549,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Si no es archivo estático ni webhook, devolver 404
   res.writeHead(404);
   res.end();
 });
@@ -527,7 +560,7 @@ client.once('ready', async () => {
   await registerSlashCommands();
   await cmd.startPresenceMonitor(client);
   const PORT = process.env.PORT || 3000;
-  server.listen(PORT, '0.0.0.0', () => console.log(`🌐 Servidor webhook activo en puerto ${PORT}`));
+  server.listen(PORT, '0.0.0.0', () => console.log(`🌐 Servidor web activo en puerto ${PORT}`));
 });
 
 client.login(TOKEN);
