@@ -4,11 +4,9 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ComponentType,
-  PermissionFlagsBits
+  ComponentType
 } = require('discord.js');
 
-const { t } = require('../i18n');
 const { db, redisGet, redisSet, redisDel } = require('./utils/database');
 const roblox = require('./utils/roblox');
 const {
@@ -20,30 +18,43 @@ const {
   isJailed,
   getAnimeGif
 } = require('./utils/helpers');
+const { t } = require('./utils/translate');
 const { ACHIEVEMENTS, SHOP_ITEMS } = require('./utils/constants');
+
+// Helper para respuestas rápidas con embed
+async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = false, args = []) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const title = await t(lang, titleKey, ...args);
+  const description = await t(lang, descKey, ...args);
+  const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor(color);
+  return ctx.reply({ embeds: [embed], ephemeral });
+}
 
 // ──────────────────────────────────────────────────────────────
 //  Consulta de puntos y daily
 // ──────────────────────────────────────────────────────────────
 
 async function cmdPuntos(ctx, targetUser) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const target = targetUser ?? { id: ctx.userId, username: ctx.username };
   const eco    = await db.getEconomy(target.id) ?? { points: 0, totalEarned: 0, streak: 0 };
   const rank   = getRank(eco.points ?? 0);
-  const bar    = rank.next ? `${progressBar(eco.points ?? 0, rank.next)} ${eco.points}/${rank.next}` : '💎 ¡Rango máximo!';
+  const bar    = rank.next ? `${progressBar(eco.points ?? 0, rank.next)} ${eco.points}/${rank.next}` : '💎 ' + (await t(lang, 'max_rank'));
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
-  ctx.reply({ embeds: [new EmbedBuilder().setTitle(`💰 Puntos de ${target.username ?? ctx.username}`)
+  ctx.reply({ embeds: [new EmbedBuilder()
+    .setTitle(await t(lang, 'points_of', target.username ?? ctx.username))
     .setColor(userColor)
     .addFields(
-      { name: '💰 Puntos actuales', value: `**${eco.points ?? 0}**`,      inline: true },
-      { name: '📈 Total ganado',    value: `**${eco.totalEarned ?? 0}**`,  inline: true },
-      { name: '🔥 Racha actual',    value: `**${eco.streak ?? 0}** días`, inline: true },
-      { name: rank.name,            value: bar },
-    ).setFooter({ text: 'Gana puntos con /daily todos los días' })] });
+      { name: await t(lang, 'current_points'), value: `**${eco.points ?? 0}**`, inline: true },
+      { name: await t(lang, 'total_earned'), value: `**${eco.totalEarned ?? 0}**`, inline: true },
+      { name: await t(lang, 'current_streak'), value: `**${eco.streak ?? 0}** ${await t(lang, 'days')}`, inline: true },
+      { name: rank.name, value: bar },
+    ).setFooter({ text: await t(lang, 'earn_points_daily') })] });
 }
 
 async function cmdDaily(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const eco  = await db.getEconomy(ctx.userId) ?? { points: 0, lastDaily: null, totalEarned: 0, streak: 0, dailyClaims: 0 };
   const now  = new Date();
   const last = eco.lastDaily ? new Date(eco.lastDaily) : null;
@@ -51,7 +62,7 @@ async function cmdDaily(ctx) {
     const next = new Date(last.getTime() + 86400000);
     const hrs  = Math.floor((next - now) / 3600000);
     const mins = Math.floor(((next - now) % 3600000) / 60000);
-    return ctx.reply(`⏰ Ya reclamaste tu daily hoy.\nVuelve en **${hrs}h ${mins}m**.\n🔥 Racha actual: **${eco.streak ?? 0}** días.`);
+    return replyEmbed(ctx, 'daily_already_title', 'daily_wait', 0xED4245, false, [hrs, mins, eco.streak ?? 0]);
   }
   const isConsecutive = last && (now - last) < 48 * 3600000;
   eco.streak = isConsecutive ? (eco.streak ?? 0) + 1 : 1;
@@ -68,15 +79,17 @@ async function cmdDaily(ctx) {
   const newAchs = await checkAchievements(ctx.userId, eco, user);
   const rank    = getRank(eco.points);
   const userColor = user?.profileColor || 0x1900ff;
-  const embed   = new EmbedBuilder().setTitle('🎁 ¡Daily reclamado!').setColor(0x57F287)
+  const embed   = new EmbedBuilder()
+    .setTitle(await t(lang, 'daily_claimed'))
+    .setColor(0x57F287)
     .addFields(
-      { name: '💰 Ganaste',  value: `**${reward} puntos**`,   inline: true },
-      { name: '🔥 Racha',    value: `**${eco.streak}** días`, inline: true },
-      { name: '💼 Total',    value: `**${eco.points}**`,       inline: true },
+      { name: await t(lang, 'earned'), value: `**${reward} ${await t(lang, 'points')}**`, inline: true },
+      { name: await t(lang, 'streak'), value: `**${eco.streak}** ${await t(lang, 'days')}`, inline: true },
+      { name: await t(lang, 'total'), value: `**${eco.points}**`, inline: true },
     )
-    .setFooter({ text: `${rank.name} · Vuelve mañana para más puntos` });
-  if (premium) embed.addFields({ name: '⭐ Bonus Premium', value: '¡x2 aplicado!' });
-  if (newAchs.length) embed.addFields({ name: '🏅 Nuevos logros', value: newAchs.map(a => `**${a.name}** — ${a.desc}`).join('\n') });
+    .setFooter({ text: `${rank.name} · ${await t(lang, 'come_back_tomorrow')}` });
+  if (premium) embed.addFields({ name: '⭐ Premium', value: await t(lang, 'premium_bonus_applied') });
+  if (newAchs.length) embed.addFields({ name: await t(lang, 'new_achievements'), value: newAchs.map(a => `**${a.name}** — ${a.desc}`).join('\n') });
   
   const gifUrl = await getAnimeGif('smile');
   if (gifUrl) embed.setImage(gifUrl);
@@ -89,28 +102,31 @@ async function cmdDaily(ctx) {
 // ──────────────────────────────────────────────────────────────
 
 async function cmdLogros(ctx, targetUser) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const target  = targetUser ?? { id: ctx.userId, username: ctx.username };
   const eco     = await db.getEconomy(target.id) ?? {};
   const achieved = eco.achievements ?? [];
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
-  ctx.reply({ embeds: [new EmbedBuilder().setTitle(`🏅 Logros de ${target.username ?? ctx.username}`)
+  ctx.reply({ embeds: [new EmbedBuilder()
+    .setTitle(await t(lang, 'achievements_of', target.username ?? ctx.username))
     .setColor(userColor)
     .setDescription(ACHIEVEMENTS.map(a =>
       `${achieved.includes(a.id) ? '✅' : '🔒'} **${a.name}**\n› _${a.desc}_`
     ).join('\n\n'))
-    .setFooter({ text: `${achieved.length}/${ACHIEVEMENTS.length} logros desbloqueados` })] });
+    .setFooter({ text: `${achieved.length}/${ACHIEVEMENTS.length} ${await t(lang, 'unlocked')}` })] });
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Juegos de azar: coinflip y pay
+//  Coinflip y Pay
 // ──────────────────────────────────────────────────────────────
 
 async function cmdCoinFlip(ctx, betStr) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const eco = await db.getEconomy(ctx.userId) ?? { points: 0 };
   const bet = parseInt(betStr);
   if (!bet || bet < 10 || bet > (eco.points ?? 0))
-    return ctx.reply(`❌ Apuesta entre **10** y **${eco.points ?? 0}** puntos.\nUso: \`!coinflip <cantidad>\``);
+    return replyEmbed(ctx, 'invalid_bet', 'coinflip_bet_range', 0xED4245, false, [eco.points ?? 0]);
   const win     = Math.random() > 0.5;
   eco.points    = (eco.points ?? 0) + (win ? bet : -bet);
   eco.totalEarned = win ? (eco.totalEarned ?? 0) + bet : eco.totalEarned;
@@ -118,56 +134,58 @@ async function cmdCoinFlip(ctx, betStr) {
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
   ctx.reply({ embeds: [new EmbedBuilder()
-    .setTitle(win ? '🎉 ¡Ganaste el coinflip!' : '💀 Perdiste el coinflip')
+    .setTitle(win ? await t(lang, 'coinflip_win') : await t(lang, 'coinflip_lose'))
     .setColor(win ? 0x57F287 : 0xED4245)
-    .setDescription(`Apostaste **${bet} puntos** y ${win ? `ganaste **${bet}** 🪙` : `perdiste **${bet}** 💸`}`)
-    .addFields({ name: '💰 Saldo actual', value: `**${eco.points}** puntos` })] });
+    .setDescription(await t(lang, 'coinflip_result', bet, win ? await t(lang, 'won') : await t(lang, 'lost'), bet))
+    .addFields({ name: await t(lang, 'current_balance'), value: `**${eco.points}** ${await t(lang, 'points')}` })] });
 }
 
 async function cmdPay(ctx, targetUser, amountStr) {
-  if (!targetUser) return ctx.reply({ content: '❌ Menciona a un usuario. Ej: `!pay @usuario 100`', ephemeral: true });
-  if (targetUser.id === ctx.userId) return ctx.reply({ content: '❌ No puedes enviarte puntos a ti mismo.', ephemeral: true });
+  const lang = await getGuildLang(ctx.guild?.id);
+  if (!targetUser) return replyEmbed(ctx, 'error', 'mention_user', 0xED4245, true);
+  if (targetUser.id === ctx.userId) return replyEmbed(ctx, 'error', 'pay_self', 0xED4245, true);
   const amount = parseInt(amountStr);
   const eco    = await db.getEconomy(ctx.userId) ?? { points: 0 };
   if (!amount || amount < 1 || amount > (eco.points ?? 0))
-    return ctx.reply({ content: `❌ Cantidad inválida. Tienes **${eco.points ?? 0}** puntos disponibles.`, ephemeral: true });
+    return replyEmbed(ctx, 'error', 'pay_insufficient', 0xED4245, true, [eco.points ?? 0]);
   const targetEco   = await db.getEconomy(targetUser.id) ?? { points: 0 };
   eco.points       -= amount;
   targetEco.points  = (targetEco.points ?? 0) + amount;
   await Promise.all([db.saveEconomy(ctx.userId, eco), db.saveEconomy(targetUser.id, targetEco)]);
-  ctx.reply(`✅ Enviaste **${amount} puntos** a **${targetUser.username}**.\nTu nuevo saldo: **${eco.points}** puntos.`);
+  replyEmbed(ctx, 'success', 'pay_success', 0x57F287, false, [amount, targetUser.username]);
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Robo (con encarcelamiento y fianza)
+//  Robo (con encarcelamiento)
 // ──────────────────────────────────────────────────────────────
 
 async function cmdRob(ctx, targetUser) {
-  if (!targetUser) return ctx.reply({ content: '❌ Menciona a un usuario.', ephemeral: true });
-  if (targetUser.id === ctx.userId) return ctx.reply({ content: '❌ No puedes robarte a ti mismo.', ephemeral: true });
+  const lang = await getGuildLang(ctx.guild?.id);
+  if (!targetUser) return replyEmbed(ctx, 'error', 'mention_user', 0xED4245, true);
+  if (targetUser.id === ctx.userId) return replyEmbed(ctx, 'error', 'rob_self', 0xED4245, true);
   
   if (targetUser.id === process.env.BOT_OWNER_ID) {
     if (ctx.userId === '752391528475000933') {
       return ctx.reply({ content: '¿Como se atreve un simple femboy a morder la mano su alfa? 🥵', ephemeral: true });
     }
-    return ctx.reply({ content: '👑 No puedes robarle a tu propio rey, plebeyo.', ephemeral: true });
+    return replyEmbed(ctx, 'error', 'rob_owner_fail', 0xED4245, true);
   }
-  if (ctx.userId === process.env.BOT_OWNER_ID) return ctx.reply({ content: '👑 El dueño no necesita robar.', ephemeral: true });
+  if (ctx.userId === process.env.BOT_OWNER_ID) return replyEmbed(ctx, 'success', 'owner_no_rob', 0xFFD700, true);
 
   if (await isJailed(ctx.userId)) {
     const jailed = await redisGet(`jailed:${ctx.userId}`);
     const mins = Math.ceil((new Date(jailed.until) - new Date()) / 60000);
-    return ctx.reply({ content: `🚔 Estás encarcelado por **${mins} minutos**. Usa el botón de "Pagar fianza" del mensaje donde fallaste el robo.`, ephemeral: true });
+    return replyEmbed(ctx, 'jailed', 'rob_jailed', 0xED4245, true, [mins]);
   }
   
   if (await isJailed(targetUser.id)) {
-    return ctx.reply({ content: `❌ No puedes robar a **${targetUser.username}** porque está bajo protección carcelaria.`, ephemeral: true });
+    return replyEmbed(ctx, 'error', 'rob_protected', 0xED4245, true, [targetUser.username]);
   }
 
   const eco = await db.getEconomy(ctx.userId) ?? { points: 0, successfulRobs: 0, failedRobs: 0, totalStolen: 0, timesJailed: 0, bailPaidCount: 0 };
   const targetEco = await db.getEconomy(targetUser.id) ?? { points: 0 };
   
-  if (targetEco.points < 50) return ctx.reply({ content: `❌ **${targetUser.username}** no tiene suficientes puntos para robar (mínimo 50).`, ephemeral: true });
+  if (targetEco.points < 50) return replyEmbed(ctx, 'error', 'rob_no_points', 0xED4245, true, [targetUser.username]);
 
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const success = isOwner ? true : (Math.random() < 0.4);
@@ -183,9 +201,9 @@ async function cmdRob(ctx, targetUser) {
     
     const gifUrl = await getAnimeGif('kick');
     const embed = new EmbedBuilder()
-      .setTitle('🦹 ¡Robo exitoso!')
+      .setTitle(await t(lang, 'rob_success_title'))
       .setColor(0x57F287)
-      .setDescription(`Robaste **${amount}** puntos a **${targetUser.username}**.`);
+      .setDescription(await t(lang, 'rob_success', amount, targetUser.username));
     if (gifUrl) embed.setImage(gifUrl);
     await ctx.reply({ embeds: [embed] });
     
@@ -204,13 +222,13 @@ async function cmdRob(ctx, targetUser) {
     
     const gifUrl = await getAnimeGif('cry');
     const embed = new EmbedBuilder()
-      .setTitle('🚔 ¡Robo fallido!')
+      .setTitle(await t(lang, 'rob_fail_title'))
       .setColor(0xED4245)
-      .setDescription(`Fallaste al robar a **${targetUser.username}**.\nMulta: **${fine}** monedas.\nEstás **encarcelado por 1 hora**.\n\nPuedes pagar 200 monedas para salir inmediatamente.`);
+      .setDescription(await t(lang, 'rob_fail_desc', fine, targetUser.username));
     if (gifUrl) embed.setImage(gifUrl);
     
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('pay_bail').setLabel('💰 Pagar fianza (200 monedas)').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId('pay_bail').setLabel('💰 ' + (await t(lang, 'pay_bail')) + ' (200)').setStyle(ButtonStyle.Primary),
     );
     
     const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
@@ -218,10 +236,10 @@ async function cmdRob(ctx, targetUser) {
     
     const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 3600000 });
     collector.on('collect', async (i) => {
-      if (i.user.id !== ctx.userId) return i.reply({ content: '❌ Solo el encarcelado puede pagar la fianza.', ephemeral: true });
+      if (i.user.id !== ctx.userId) return i.reply({ content: await t(lang, 'only_author'), ephemeral: true });
       const userEco = await db.getEconomy(ctx.userId) ?? { points: 0, bailPaidCount: 0 };
       if (userEco.points < 200) {
-        return i.reply({ content: `❌ Necesitas 200 monedas. Tienes ${userEco.points}.`, ephemeral: true });
+        return i.reply({ content: await t(lang, 'bail_insufficient', userEco.points), ephemeral: true });
       }
       userEco.points -= 200;
       userEco.bailPaidCount = (userEco.bailPaidCount ?? 0) + 1;
@@ -231,7 +249,7 @@ async function cmdRob(ctx, targetUser) {
       const user = await db.getUser(ctx.userId);
       await checkAchievements(ctx.userId, userEco, user);
       
-      await i.update({ embeds: [embed.setFooter({ text: '✅ Fianza pagada. Estás libre.' }).setColor(0x57F287)], components: [] });
+      await i.update({ embeds: [embed.setFooter({ text: await t(lang, 'bail_paid') }).setColor(0x57F287)], components: [] });
       collector.stop();
     });
     collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
@@ -242,10 +260,11 @@ async function cmdRob(ctx, targetUser) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Rankings (local y global)
+//  Rankings
 // ──────────────────────────────────────────────────────────────
 
 async function cmdTopLocal(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const members = await ctx.guild.members.fetch();
   const ecoList = [];
   for (const [id] of members) {
@@ -257,22 +276,23 @@ async function cmdTopLocal(ctx) {
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
-    .setTitle(t(await getGuildLang(ctx.guild.id), 'lb_local_title'))
+    .setTitle(await t(lang, 'lb_local_title'))
     .setColor(userColor)
-    .setDescription(top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** pts`).join('\n') || 'No hay datos aún.');
+    .setDescription(top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${await t(lang, 'points')}`).join('\n') || await t(lang, 'no_data'));
   ctx.reply({ embeds: [embed] });
 }
 
 async function cmdTopGlobal(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const global = await redisGet('leaderboard_global') ?? [];
   global.sort((a, b) => b.points - a.points);
   const top10 = global.slice(0, 10);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
-    .setTitle(t(await getGuildLang(ctx.guild?.id), 'lb_global_title'))
+    .setTitle(await t(lang, 'lb_global_title'))
     .setColor(userColor)
-    .setDescription(top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** pts`).join('\n') || 'No hay datos aún.');
+    .setDescription(top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${await t(lang, 'points')}`).join('\n') || await t(lang, 'no_data'));
   ctx.reply({ embeds: [embed] });
 }
 
@@ -281,37 +301,39 @@ async function cmdTopGlobal(ctx) {
 // ──────────────────────────────────────────────────────────────
 
 async function cmdTienda(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const userEntry = await db.getUser(ctx.userId);
   const inventory = userEntry?.inventory ?? [];
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
-    .setTitle('🛒 Tienda de Puntos')
+    .setTitle(await t(lang, 'shop_title'))
     .setColor(userColor)
     .setDescription(
       SHOP_ITEMS.map(item => {
         const owned = inventory.includes(item.id) || isOwner;
         const status = owned ? '✅' : '🔒';
-        return `${status} **${item.name}** — \`${item.cost}\` pts\nID: \`${item.id}\``;
+        return `${status} **${item.name}** — \`${item.cost}\` ${await t(lang, 'points')}\nID: \`${item.id}\``;
       }).join('\n\n')
     )
-    .setFooter({ text: 'Usa /comprar <id> para adquirir. ✅ = Ya desbloqueado' });
+    .setFooter({ text: await t(lang, 'shop_footer') });
   ctx.reply({ embeds: [embed] });
 }
 
 async function cmdComprar(ctx, itemId) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const item = SHOP_ITEMS.find(i => i.id === itemId);
-  if (!item) return ctx.reply({ content: '❌ Item no encontrado. Usa /tienda para ver.', ephemeral: true });
+  if (!item) return replyEmbed(ctx, 'error', 'shop_not_found', 0xED4245, true);
   
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const eco = await db.getEconomy(ctx.userId) ?? { points: 0, shopPurchases: 0 };
   const profile = await db.getUser(ctx.userId) ?? {};
   if (!profile.inventory) profile.inventory = [];
   
-  if (profile.inventory.includes(item.id)) return ctx.reply({ content: '❌ Ya tienes este item.', ephemeral: true });
+  if (profile.inventory.includes(item.id)) return replyEmbed(ctx, 'error', 'shop_already_owned', 0xED4245, true);
   
   if (!isOwner) {
-    if (eco.points < item.cost) return ctx.reply({ content: `❌ Necesitas ${item.cost} puntos. Tienes ${eco.points}.`, ephemeral: true });
+    if (eco.points < item.cost) return replyEmbed(ctx, 'error', 'shop_no_points', 0xED4245, true, [item.cost, eco.points]);
     eco.points -= item.cost;
     eco.shopPurchases = (eco.shopPurchases ?? 0) + 1;
   }
@@ -324,7 +346,7 @@ async function cmdComprar(ctx, itemId) {
   const user = await db.getUser(ctx.userId);
   await checkAchievements(ctx.userId, eco, user);
   
-  ctx.reply({ content: isOwner ? `👑 Como dueño, recibiste **${item.name}** gratis.` : `✅ Compraste **${item.name}** por ${item.cost} puntos.`, ephemeral: true });
+  replyEmbed(ctx, 'success', 'shop_buy_success', 0x57F287, true, [item.name, item.cost]);
 }
 
 module.exports = {
