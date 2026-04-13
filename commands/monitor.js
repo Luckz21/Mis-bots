@@ -1,8 +1,9 @@
 // commands/monitor.js
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
 const { db, redisGet, redisSet } = require('./utils/database');
 const roblox = require('./utils/roblox');
-const { isPremium, filterAlertsByResetPeriod } = require('./utils/helpers');
+const { isPremium, filterAlertsByResetPeriod, syncRoles, getGuildLang } = require('./utils/helpers');
+const { t } = require('./utils/translate');
 
 const presenceCacheMonitor = {};
 
@@ -14,9 +15,7 @@ async function startPresenceMonitor(client) {
       for (const discordId of alertUsers) {
         let alerts = await db.getAlerts(discordId) ?? [];
         const isUserPremium = await isPremium(discordId);
-        if (!isUserPremium) {
-          alerts = filterAlertsByResetPeriod(alerts);
-        }
+        if (!isUserPremium) alerts = filterAlertsByResetPeriod(alerts);
         for (const alert of alerts) {
           const presence = await roblox.getPresence(alert.watchedRobloxId);
           if (!presence) continue;
@@ -24,16 +23,18 @@ async function startPresenceMonitor(client) {
           const curr = presence.userPresenceType;
           if (prev !== undefined && prev !== curr) {
             const { label, color } = roblox.formatPresence(curr);
+            const guild = client.guilds.cache.get(alert.guildId);
+            const lang = guild ? await getGuildLang(guild.id) : 'es';
             const embed = new EmbedBuilder()
-              .setTitle('🔔 Alerta de presencia')
-              .setDescription(`**${alert.watchedUsername}** → ${label}`)
+              .setTitle(await t(lang, 'monitor_alert_title'))
+              .setDescription(await t(lang, 'monitor_alert_desc', alert.watchedUsername, label))
               .setColor(color).setTimestamp();
             if (curr === 2 && presence.universeId) {
               const gn = await roblox.getGameName(presence.universeId);
-              if (gn) embed.addFields({ name: '🕹️ Jugando', value: `[${gn}](https://www.roblox.com/games/${presence.rootPlaceId})` });
+              if (gn) embed.addFields({ name: await t(lang, 'playing'), value: `[${gn}](https://www.roblox.com/games/${presence.rootPlaceId})` });
             }
-            if (presence.lastOnline) embed.addFields({ name: '🕐 Última vez', value: new Date(presence.lastOnline).toLocaleString('es-ES') });
-            const config    = await db.getGuildConf(alert.guildId);
+            if (presence.lastOnline) embed.addFields({ name: await t(lang, 'last_online'), value: new Date(presence.lastOnline).toLocaleString('es-ES') });
+            const config = await db.getGuildConf(alert.guildId);
             const channelId = config?.alertChannelId ?? alert.channelId;
             try {
               const channel = await client.channels.fetch(channelId);
@@ -62,11 +63,13 @@ async function startPresenceMonitor(client) {
         const createdDate = new Date(created);
         if (createdDate.getMonth() === today.getMonth() && createdDate.getDate() === today.getDate()) {
           const years = today.getFullYear() - createdDate.getFullYear();
-          const profile  = await roblox.getProfile(robloxId);
+          const profile = await roblox.getProfile(robloxId);
           const avatarUrl = await roblox.getAvatar(robloxId);
+          const guild = client.guilds.cache.get(guildId);
+          const lang = guild ? await getGuildLang(guild.id) : 'es';
           const embed = new EmbedBuilder()
-            .setTitle('🎂 ¡Aniversario de cuenta!')
-            .setDescription(`**${profile?.name ?? 'Usuario'}** celebra **${years} año${years !== 1 ? 's' : ''}** en Roblox hoy!`)
+            .setTitle(await t(lang, 'monitor_birthday_title'))
+            .setDescription(await t(lang, 'monitor_birthday_desc', profile?.name ?? 'Usuario', years))
             .setColor(0xFF69B4).setThumbnail(avatarUrl).setTimestamp();
           try {
             const channel = await client.channels.fetch(channelId);
@@ -79,38 +82,31 @@ async function startPresenceMonitor(client) {
 }
 
 async function onMemberJoin(member) {
-  const { db } = require('./utils/database');
-  const { syncRoles } = require('./utils/helpers');
   const entry = await db.getUser(member.id);
   if (!entry) return;
   await syncRoles(member.guild, member.id, entry.robloxId);
-  console.log(`🔄 On-join sync: ${member.user.username}`);
 }
-
 async function onGuildAdd(guild) {
-  const { EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
   try {
     const channel = guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages));
     if (!channel) return;
-    channel.send({ embeds: [new EmbedBuilder()
-      .setTitle('👋 ¡Hola! Soy el Bot de Roblox v10.8')
+    const lang = await getGuildLang(guild.id);
+    const embed = new EmbedBuilder()
+      .setTitle(await t(lang, 'guildadd_title'))
       .setColor(0x1900ff)
-      .setDescription('Gracias por añadirme. Aquí está la guía rápida:')
+      .setDescription(await t(lang, 'guildadd_description'))
       .addFields(
-        { name: '1️⃣ Rol de verificado',  value: '`/setverifiedrole @Rol`' },
-        { name: '2️⃣ Bienvenida',         value: '`/setwelcome #canal Mensaje`' },
-        { name: '3️⃣ Alertas',            value: '`/setalertchannel #canal`' },
-        { name: '4️⃣ Grupos → Roles',     value: '`/bindrole <grupoId> <rangoMin> @Rol`' },
-        { name: '5️⃣ Idioma',             value: '`/setlang es|en|pt`' },
-        { name: '6️⃣ Verificación',       value: 'Los usuarios usan `/verificar <username>`' },
-        { name: '📋 Todos los comandos',  value: '`/ayuda`' },
+        { name: '1️⃣ ' + await t(lang, 'verified_role'), value: '`/setverifiedrole @Rol`' },
+        { name: '2️⃣ ' + await t(lang, 'welcome'), value: '`/setwelcome #canal Mensaje`' },
+        { name: '3️⃣ ' + await t(lang, 'alerts'), value: '`/setalertchannel #canal`' },
+        { name: '4️⃣ ' + await t(lang, 'groups_roles'), value: '`/bindrole <grupoId> <rangoMin> @Rol`' },
+        { name: '5️⃣ ' + await t(lang, 'language'), value: '`/setlang es|en|pt`' },
+        { name: '6️⃣ ' + await t(lang, 'verification'), value: '`/verificar <username>`' },
+        { name: '📋 ' + await t(lang, 'all_commands'), value: '`/ayuda`' },
       )
-      .setFooter({ text: 'Bot Roblox v10.8 · Usa /ayuda para ver todo' })] });
+      .setFooter({ text: 'Bot Roblox v10.8 · /ayuda' });
+    channel.send({ embeds: [embed] });
   } catch (e) { console.error('onGuildAdd:', e.message); }
 }
 
-module.exports = {
-  startPresenceMonitor,
-  onMemberJoin,
-  onGuildAdd
-};
+module.exports = { startPresenceMonitor, onMemberJoin, onGuildAdd };
