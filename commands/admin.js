@@ -1,160 +1,104 @@
 // commands/admin.js
-const {
-  EmbedBuilder,
-  PermissionFlagsBits,
-  ChannelType
-} = require('discord.js');
-
-const { t } = require('../i18n');
+const { EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { db } = require('./utils/database');
 const { getGuildLang } = require('./utils/helpers');
+const { t } = require('./utils/translate');
 
-// ──────────────────────────────────────────────────────────────
-//  Roles de verificación y Premium
-// ──────────────────────────────────────────────────────────────
+async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = false, args = []) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const title = await t(lang, titleKey, ...args);
+  const description = await t(lang, descKey, ...args);
+  const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor(color);
+  return ctx.reply({ embeds: [embed], ephemeral });
+}
 
 async function cmdSetVerifiedRole(ctx, role) {
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.verifiedRoleId = role.id;
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Rol de verificado configurado: ${role}`);
+  replyEmbed(ctx, 'success', 'admin_setverifiedrole', 0x57F287, false, [role.toString()]);
 }
-
 async function cmdSetPremiumRole(ctx, role) {
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.premiumRoleId = role.id;
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Rol Premium configurado: ${role}`);
+  replyEmbed(ctx, 'success', 'admin_setpremiumrole', 0x57F287, false, [role.toString()]);
 }
-
-// ──────────────────────────────────────────────────────────────
-//  Vinculación de grupos de Roblox a roles
-// ──────────────────────────────────────────────────────────────
-
 async function cmdBindRole(ctx, groupId, minRank, role) {
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   if (!config.bindings) config.bindings = [];
   config.bindings = config.bindings.filter(b => String(b.groupId) !== String(groupId));
   config.bindings.push({ groupId: String(groupId), minRank: Number(minRank), roleId: role.id });
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Vinculación creada:\nGrupo Roblox \`${groupId}\` con rango ≥ **${minRank}** → ${role}`);
+  replyEmbed(ctx, 'success', 'admin_bindrole', 0x57F287, false, [groupId, minRank, role.toString()]);
 }
-
 async function cmdUnbindRole(ctx, groupId) {
   const config = await db.getGuildConf(ctx.guild.id);
-  if (!config?.bindings?.length) return ctx.reply({ content: '❌ No hay vinculaciones configuradas.', ephemeral: true });
+  if (!config?.bindings?.length) return replyEmbed(ctx, 'error', 'admin_no_bindings', 0xED4245, true);
   config.bindings = config.bindings.filter(b => String(b.groupId) !== String(groupId));
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Vinculación del grupo \`${groupId}\` eliminada.`);
+  replyEmbed(ctx, 'success', 'admin_unbindrole', 0x57F287, false, [groupId]);
 }
-
 async function cmdListRoles(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const config = await db.getGuildConf(ctx.guild.id);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
-  ctx.reply({ embeds: [new EmbedBuilder().setTitle('⚙️ Configuración de roles').setColor(userColor)
+  const embed = new EmbedBuilder()
+    .setTitle(await t(lang, 'admin_listroles_title'))
+    .setColor(userColor)
     .addFields(
-      { name: '✅ Rol de verificado',      value: config?.verifiedRoleId ? `<@&${config.verifiedRoleId}>` : '_No configurado_' },
-      { name: '⭐ Rol Premium',             value: config?.premiumRoleId  ? `<@&${config.premiumRoleId}>`  : '_No configurado_' },
-      { name: '🏰 Vinculaciones de grupos', value: config?.bindings?.length ? config.bindings.map(b => `• Grupo \`${b.groupId}\` rango ≥ ${b.minRank} → <@&${b.roleId}>`).join('\n') : '_Sin vinculaciones_' },
-      { name: '🔤 Formato de apodo',       value: config?.nicknameFormat ? `\`${config.nicknameFormat}\`` : '_Desactivado_' },
-      { name: '🌐 Idioma del bot',          value: config?.lang ? `\`${config.lang}\`` : '`es` (español)' },
+      { name: '✅ ' + await t(lang, 'verified_role'), value: config?.verifiedRoleId ? `<@&${config.verifiedRoleId}>` : '_' + await t(lang, 'not_configured') + '_' },
+      { name: '⭐ ' + await t(lang, 'premium_role'), value: config?.premiumRoleId ? `<@&${config.premiumRoleId}>` : '_' + await t(lang, 'not_configured') + '_' },
+      { name: '🏰 ' + await t(lang, 'group_bindings'), value: config?.bindings?.length ? config.bindings.map(b => `• \`${b.groupId}\` ≥ ${b.minRank} → <@&${b.roleId}>`).join('\n') : '_' + await t(lang, 'no_bindings') + '_' },
+      { name: '🔤 ' + await t(lang, 'nickname_format'), value: config?.nicknameFormat ? `\`${config.nicknameFormat}\`` : '_' + await t(lang, 'disabled') + '_' },
+      { name: '🌐 ' + await t(lang, 'bot_language'), value: config?.lang ? `\`${config.lang}\`` : '`es`' },
     )
-    .setFooter({ text: 'Usa los comandos de admin para modificar esta configuración' })] });
+    .setFooter({ text: await t(lang, 'admin_listroles_footer') });
+  ctx.reply({ embeds: [embed] });
 }
-
-// ──────────────────────────────────────────────────────────────
-//  Mensajes de bienvenida
-// ──────────────────────────────────────────────────────────────
-
 async function cmdSetWelcome(ctx, channelId, message) {
-  if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.ManageGuild))
-    return ctx.reply({ content: t(await getGuildLang(ctx.guild.id), 'need_manage_guild'), ephemeral: true });
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.welcomeChannelId = channelId;
   config.welcomeMessage   = message || '¡Bienvenido {user}! Tu cuenta de Roblox **{roblox}** ha sido verificada. 🎉';
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Mensaje de bienvenida configurado en <#${channelId}>.`);
+  replyEmbed(ctx, 'success', 'admin_setwelcome', 0x57F287, false, [channelId]);
 }
-
-// ──────────────────────────────────────────────────────────────
-//  Canal de alertas
-// ──────────────────────────────────────────────────────────────
-
 async function cmdSetAlertChannel(ctx, channelId) {
-  if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.ManageGuild))
-    return ctx.reply({ content: t(await getGuildLang(ctx.guild.id), 'need_manage_guild'), ephemeral: true });
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.alertChannelId = channelId;
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Canal de alertas de presencia configurado: <#${channelId}>`);
+  replyEmbed(ctx, 'success', 'admin_setalertchannel', 0x57F287, false, [channelId]);
 }
-
-// ──────────────────────────────────────────────────────────────
-//  Formato de apodo automático
-// ──────────────────────────────────────────────────────────────
-
 async function cmdSetNickname(ctx, format) {
-  if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.ManageNicknames))
-    return ctx.reply({ content: '❌ Necesitas **Gestionar Apodos**.', ephemeral: true });
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.nicknameFormat = format ?? null;
   await db.saveGuildConf(ctx.guild.id, config);
-  if (format) ctx.reply(`✅ Auto-nickname activado: \`${format}\``);
-  else ctx.reply('✅ Auto-nickname desactivado.');
+  if (format) replyEmbed(ctx, 'success', 'admin_setnickname', 0x57F287, false, [format]);
+  else replyEmbed(ctx, 'success', 'admin_setnickname_off', 0x57F287);
 }
-
-// ──────────────────────────────────────────────────────────────
-//  Idioma del bot
-// ──────────────────────────────────────────────────────────────
-
 async function cmdSetLang(ctx, lang) {
-  if (!['es', 'en', 'pt'].includes(lang)) return ctx.reply({ content: '❌ Idiomas disponibles: `es` (Español), `en` (English), `pt` (Português)', ephemeral: true });
-  if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.ManageGuild))
-    return ctx.reply({ content: t(await getGuildLang(ctx.guild.id), 'need_manage_guild'), ephemeral: true });
+  if (!['es', 'en', 'pt'].includes(lang)) return replyEmbed(ctx, 'error', 'invalid_language', 0xED4245, true);
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.lang = lang;
   await db.saveGuildConf(ctx.guild.id, config);
   const names = { es: '🇪🇸 Español', en: '🇺🇸 English', pt: '🇧🇷 Português' };
-  ctx.reply(`✅ Idioma del bot cambiado a **${names[lang]}**.`);
+  replyEmbed(ctx, 'success', 'admin_setlang', 0x57F287, false, [names[lang]]);
 }
-
-// ──────────────────────────────────────────────────────────────
-//  Prefijo para comandos de texto
-// ──────────────────────────────────────────────────────────────
-
 async function cmdSetPrefix(ctx, prefix) {
-  if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.ManageGuild))
-    return ctx.reply({ content: t(await getGuildLang(ctx.guild.id), 'need_manage_guild'), ephemeral: true });
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.prefix = prefix;
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Prefijo del servidor cambiado a \`${prefix}\``);
+  replyEmbed(ctx, 'success', 'admin_setprefix', 0x57F287, false, [prefix]);
 }
-
-// ──────────────────────────────────────────────────────────────
-//  Categoría para canales de voz automáticos (LFG)
-// ──────────────────────────────────────────────────────────────
-
 async function cmdSetVoiceCategory(ctx, categoryId) {
-  if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.ManageChannels))
-    return ctx.reply({ content: '❌ Necesitas Gestionar Canales.', ephemeral: true });
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.voiceCategoryId = categoryId;
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Categoría para canales de voz automáticos configurada.`);
+  replyEmbed(ctx, 'success', 'admin_setvoicecategory', 0x57F287);
 }
 
 module.exports = {
-  cmdSetVerifiedRole,
-  cmdSetPremiumRole,
-  cmdBindRole,
-  cmdUnbindRole,
-  cmdListRoles,
-  cmdSetWelcome,
-  cmdSetAlertChannel,
-  cmdSetNickname,
-  cmdSetLang,
-  cmdSetPrefix,
-  cmdSetVoiceCategory
+  cmdSetVerifiedRole, cmdSetPremiumRole, cmdBindRole, cmdUnbindRole, cmdListRoles,
+  cmdSetWelcome, cmdSetAlertChannel, cmdSetNickname, cmdSetLang, cmdSetPrefix, cmdSetVoiceCategory
 };
