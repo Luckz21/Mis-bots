@@ -1,13 +1,10 @@
 // commands/triviaCommands.js
-const {
-  EmbedBuilder
-} = require('discord.js');
-
+const { EmbedBuilder } = require('discord.js');
 const { db, redisGet, redisSet } = require('./utils/database');
 const { isPremium, getGuildLang, checkAchievements } = require('./utils/helpers');
+const { t } = require('./utils/translate');
 const roblox = require('./utils/roblox');
 
-// Importar el módulo original de preguntas de trivia
 const {
   getRandomQuestion: _getRandomQ,
   checkAnswer: _checkAnswer,
@@ -18,14 +15,21 @@ const {
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-// ──────────────────────────────────────────────────────────────
-//  Trivia normal (límite diario, 5 pts, categorías)
-// ──────────────────────────────────────────────────────────────
+async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = false, args = []) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const title = await t(lang, titleKey, ...args);
+  const description = await t(lang, descKey, ...args);
+  const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor(color);
+  return ctx.reply({ embeds: [embed], ephemeral });
+}
 
+// ──────────────────────────────────────────────────────────────
+//  Trivia normal
+// ──────────────────────────────────────────────────────────────
 async function cmdTrivia(ctx, category) {
   const lang = await getGuildLang(ctx.guild?.id);
   const channel = ctx.channel;
-  if (!channel) return ctx.reply({ content: '❌ Este comando solo funciona en canales de texto.', ephemeral: true });
+  if (!channel) return replyEmbed(ctx, 'error', 'text_only', 0xED4245, true);
 
   const today = new Date().toISOString().slice(0,10);
   const countKey = `trivia:count:${ctx.userId}:${today}`;
@@ -34,7 +38,7 @@ async function cmdTrivia(ctx, category) {
   const limit = isPremiumUser ? 30 : 10;
   
   if (count >= limit) {
-    return ctx.reply({ content: `❌ Has alcanzado el límite diario de trivia (${limit} preguntas). Vuelve mañana o hazte Premium para 30.`, ephemeral: true });
+    return replyEmbed(ctx, 'limit_reached', 'trivia_daily_limit', 0xED4245, true, [limit]);
   }
 
   let question;
@@ -48,10 +52,10 @@ async function cmdTrivia(ctx, category) {
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
-    .setTitle(`${catEmoji[question.cat] ?? '🎲'} Trivia — ${question.cat}`)
+    .setTitle(`${catEmoji[question.cat] ?? '🎲'} ${await t(lang, 'trivia_category', question.cat)}`)
     .setDescription(`**${question.q}**`)
     .setColor(userColor)
-    .setFooter({ text: `Escribe tu respuesta · 30 segundos · ${count + 1}/${limit} hoy` });
+    .setFooter({ text: `${await t(lang, 'write_answer')} · 30s · ${count + 1}/${limit} ${await t(lang, 'today')}` });
 
   await ctx.reply({ embeds: [embed] });
 
@@ -78,46 +82,46 @@ async function cmdTrivia(ctx, category) {
       const user = await db.getUser(m.author.id);
       await checkAchievements(m.author.id, eco, user);
       
-      await m.reply(`✅ ¡Correcto! La respuesta era **${question.a}**\n🎁 <@${m.author.id}> gana **+${reward} puntos**! Saldo: **${eco.points}**\n📊 ${count + 1}/${limit} preguntas hoy.`);
+      await m.reply(await t(lang, 'trivia_correct', question.a, m.author.id, reward, eco.points, count + 1, limit));
     }
   });
 
   collector.on('end', (collected, reason) => {
     if (!answered) {
-      channel.send(`⏰ Tiempo agotado. La respuesta era **${question.a}**.`).catch(() => {});
+      channel.send(await t(lang, 'trivia_timeout', question.a)).catch(() => {});
     }
   });
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Trivia personalizada (add, list, play)
+//  Trivia personalizada
 // ──────────────────────────────────────────────────────────────
-
 async function cmdTriviaCustom(ctx, subcommand, ...args) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   
   if (subcommand === 'add' && isOwner) {
     const input = args.join(' ');
     const parts = input.split('|');
-    if (parts.length < 2) return ctx.reply('❌ Formato: `/triviacustom add ¿Pregunta? | respuesta`');
+    if (parts.length < 2) return replyEmbed(ctx, 'error', 'trivia_custom_add_format', 0xED4245, true);
     const question = parts[0].trim();
     const answer = parts[1].trim();
-    if (!question || !answer) return ctx.reply('❌ Pregunta y respuesta requeridas.');
+    if (!question || !answer) return replyEmbed(ctx, 'error', 'trivia_custom_required', 0xED4245, true);
     
     const questions = await redisGet('custom_trivia') || [];
     questions.push({ q: question, a: answer, cat: 'Personalizada' });
     await redisSet('custom_trivia', questions);
-    ctx.reply('✅ Pregunta personalizada añadida.');
+    replyEmbed(ctx, 'success', 'trivia_custom_added', 0x57F287, true);
     
   } else if (subcommand === 'list') {
     const questions = await redisGet('custom_trivia') || [];
-    if (!questions.length) return ctx.reply('No hay preguntas personalizadas.');
+    if (!questions.length) return replyEmbed(ctx, 'info', 'trivia_custom_empty', 0x1900ff, true);
     const userColor = (await db.getUser(ctx.userId))?.profileColor || 0x1900ff;
     const embed = new EmbedBuilder()
-      .setTitle('📚 Preguntas Personalizadas')
+      .setTitle(await t(lang, 'trivia_custom_list'))
       .setColor(userColor)
       .setDescription(questions.map((q, i) => `**${i+1}.** ${q.q}\n→ \`${q.a}\``).join('\n\n'))
-      .setFooter({ text: `${questions.length} preguntas` });
+      .setFooter({ text: `${questions.length} ${await t(lang, 'questions')}` });
     ctx.reply({ embeds: [embed] });
     
   } else if (subcommand === 'play') {
@@ -128,19 +132,19 @@ async function cmdTriviaCustom(ctx, subcommand, ...args) {
     const limit = isPremiumUser ? 15 : 5;
     
     if (count >= limit) {
-      return ctx.reply(`❌ Límite diario alcanzado (${limit} preguntas).`);
+      return replyEmbed(ctx, 'limit_reached', 'trivia_custom_daily_limit', 0xED4245, true, [limit]);
     }
     
     const questions = await redisGet('custom_trivia') || [];
-    if (!questions.length) return ctx.reply('No hay preguntas personalizadas aún.');
+    if (!questions.length) return replyEmbed(ctx, 'info', 'trivia_custom_empty', 0x1900ff, true);
     
     const question = questions[Math.floor(Math.random() * questions.length)];
     const userColor = (await db.getUser(ctx.userId))?.profileColor || 0x1900ff;
     const embed = new EmbedBuilder()
-      .setTitle('🎲 Trivia Personalizada')
+      .setTitle(await t(lang, 'trivia_custom_title'))
       .setDescription(`**${question.q}**`)
       .setColor(userColor)
-      .setFooter({ text: `Escribe tu respuesta · 30 segundos · ${count+1}/${limit} hoy` });
+      .setFooter({ text: `${await t(lang, 'write_answer')} · 30s · ${count+1}/${limit} ${await t(lang, 'today')}` });
     
     await ctx.reply({ embeds: [embed] });
     
@@ -166,18 +170,18 @@ async function cmdTriviaCustom(ctx, subcommand, ...args) {
         eco.totalEarned = (eco.totalEarned ?? 0) + reward;
         await db.saveEconomy(ctx.userId, eco);
         
-        await m.reply(`✅ ¡Correcto! +${reward} puntos. Saldo: **${eco.points}**`);
+        await m.reply(await t(lang, 'trivia_custom_correct', reward, eco.points));
       }
     });
     
     collector.on('end', (collected, reason) => {
       if (!answered) {
-        ctx.channel.send(`⏰ Tiempo agotado. La respuesta era: **${question.a}**`);
+        ctx.channel.send(await t(lang, 'trivia_timeout', question.a)).catch(() => {});
       }
     });
     
   } else {
-    ctx.reply('❌ Subcomando no reconocido. Usa `add`, `list` o `play`.');
+    replyEmbed(ctx, 'error', 'trivia_custom_usage', 0xED4245, true);
   }
 }
 
