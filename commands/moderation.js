@@ -1,59 +1,54 @@
 // commands/moderation.js
-const {
-  EmbedBuilder,
-  PermissionFlagsBits
-} = require('discord.js');
-
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const { db } = require('./utils/database');
 const roblox = require('./utils/roblox');
-const { isPremium, syncRoles } = require('./utils/helpers');
+const { isPremium, syncRoles, getGuildLang } = require('./utils/helpers');
+const { t } = require('./utils/translate');
 
-// ──────────────────────────────────────────────────────────────
-//  Whois - Ver vinculación Discord-Roblox
-// ──────────────────────────────────────────────────────────────
-
-async function cmdWhois(ctx, targetUser) {
-  if (!targetUser) return ctx.reply({ content: '❌ Menciona a un usuario. Ej: `/whois @usuario`', ephemeral: true });
-  const entry = await db.getUser(targetUser.id);
-  if (!entry) return ctx.reply({ content: `❌ **${targetUser.username}** no tiene cuenta de Roblox vinculada.`, ephemeral: true });
-  const [premium, avatarUrl] = await Promise.all([isPremium(targetUser.id), roblox.getAvatar(entry.robloxId)]);
-  const userColor = entry.profileColor || 0x1900ff;
-  ctx.reply({ embeds: [new EmbedBuilder().setTitle(`🔍 Whois: ${targetUser.username}`)
-    .setColor(userColor).setThumbnail(avatarUrl)
-    .addFields(
-      { name: '🎮 Cuenta de Roblox', value: `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)`, inline: true },
-      { name: '🆔 ID de Roblox',     value: `\`${entry.robloxId}\``,                                                               inline: true },
-      { name: '⭐ Premium',           value: premium ? 'Sí ✅' : 'No ❌',                                                            inline: true },
-      { name: '📅 Verificado el',    value: new Date(entry.verifiedAt).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }), inline: true },
-    )
-    .setFooter({ text: 'Información de vinculación Discord ↔ Roblox' })] });
+async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = false, args = []) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const title = await t(lang, titleKey, ...args);
+  const description = await t(lang, descKey, ...args);
+  const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor(color);
+  return ctx.reply({ embeds: [embed], ephemeral });
 }
 
-// ──────────────────────────────────────────────────────────────
-//  SyncAll - Sincronizar roles de todos los verificados (Admin)
-// ──────────────────────────────────────────────────────────────
+async function cmdWhois(ctx, targetUser) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  if (!targetUser) return replyEmbed(ctx, 'error', 'mention_user', 0xED4245, true);
+  const entry = await db.getUser(targetUser.id);
+  if (!entry) return replyEmbed(ctx, 'error', 'no_account', 0xED4245, true, [targetUser.username]);
+  const [premium, avatarUrl] = await Promise.all([isPremium(targetUser.id), roblox.getAvatar(entry.robloxId)]);
+  const userColor = entry.profileColor || 0x1900ff;
+  const embed = new EmbedBuilder()
+    .setTitle(await t(lang, 'whois_title', targetUser.username))
+    .setColor(userColor).setThumbnail(avatarUrl)
+    .addFields(
+      { name: '🎮 ' + await t(lang, 'roblox_account'), value: `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)`, inline: true },
+      { name: '🆔 ' + await t(lang, 'roblox_id'), value: `\`${entry.robloxId}\``, inline: true },
+      { name: '⭐ Premium', value: premium ? await t(lang, 'yes') : await t(lang, 'no'), inline: true },
+      { name: '📅 ' + await t(lang, 'verified_on'), value: new Date(entry.verifiedAt).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }), inline: true },
+    )
+    .setFooter({ text: await t(lang, 'whois_footer') });
+  ctx.reply({ embeds: [embed] });
+}
 
 async function cmdSyncAll(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
   if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.Administrator)) {
-    return ctx.reply({ content: '❌ Necesitas permiso de **Administrador** para usar este comando.', ephemeral: true });
+    return replyEmbed(ctx, 'error', 'need_admin', 0xED4245, true);
   }
   if (!ctx.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles))
-    return ctx.reply({ content: '❌ El bot necesita el permiso **Gestionar Roles** en este servidor.', ephemeral: true });
+    return replyEmbed(ctx, 'error', 'bot_need_manage_roles', 0xED4245, true);
   
-  await ctx.reply('⏳ Sincronizando roles de todos los miembros verificados...');
+  await ctx.reply({ content: await t(lang, 'syncall_start'), ephemeral: true });
   const members = await ctx.guild.members.fetch();
   let count = 0;
   for (const [id] of members) {
     const entry = await db.getUser(id);
-    if (entry) { 
-      await syncRoles(ctx.guild, id, entry.robloxId); 
-      count++; 
-    }
+    if (entry) { await syncRoles(ctx.guild, id, entry.robloxId); count++; }
   }
-  ctx.reply(`✅ Roles sincronizados para **${count}** miembros verificados.`);
+  ctx.reply({ content: await t(lang, 'syncall_done', count), ephemeral: true });
 }
 
-module.exports = {
-  cmdWhois,
-  cmdSyncAll
-};
+module.exports = { cmdWhois, cmdSyncAll };
