@@ -10,31 +10,36 @@ const {
 } = require('discord.js');
 
 const { sanitizeText } = require('../security');
-const { t } = require('../i18n');
 const { db } = require('./utils/database');
 const { getGuildLang } = require('./utils/helpers');
+const { t } = require('./utils/translate');
+
+async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = false, args = []) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const title = await t(lang, titleKey, ...args);
+  const description = await t(lang, descKey, ...args);
+  const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor(color);
+  return ctx.reply({ embeds: [embed], ephemeral });
+}
 
 // ──────────────────────────────────────────────────────────────
-//  LFG Mejorado: crea canal de voz temporal
+//  LFG Mejorado (crea canal de voz temporal)
 // ──────────────────────────────────────────────────────────────
-
 async function cmdLFG(ctx, gameName, slots) {
-  if (!gameName) return ctx.reply({ content: '❌ Uso: `!lfg <nombre del juego> [slots]`\nEjemplo: `!lfg Blox Fruits 4`', ephemeral: true });
+  const lang = await getGuildLang(ctx.guild?.id);
+  if (!gameName) return replyEmbed(ctx, 'error', 'lfg_usage', 0xED4245, true);
   
   const entry = await db.getUser(ctx.userId);
-  if (!entry) return ctx.reply({ content: '❌ Necesitas tener cuenta vinculada para crear un LFG.', ephemeral: true });
+  if (!entry) return replyEmbed(ctx, 'error', 'no_linked_account', 0xED4245, true);
   
-  // Validar slots
   const maxSlots = Math.min(Math.max(parseInt(slots) || 4, 2), 10);
   
-  // Verificar permisos del bot
   const botMember = ctx.guild.members.me;
   if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels) || 
       !botMember.permissions.has(PermissionFlagsBits.MoveMembers)) {
-    return ctx.reply({ content: '❌ El bot necesita permisos de **Gestionar Canales** y **Mover Miembros** para crear canales de voz.', ephemeral: true });
+    return replyEmbed(ctx, 'error', 'lfg_missing_perms', 0xED4245, true);
   }
 
-  // Obtener categoría configurada o usar la general
   const config = await db.getGuildConf(ctx.guild.id);
   const categoryId = config?.voiceCategoryId;
   let category = null;
@@ -42,35 +47,23 @@ async function cmdLFG(ctx, gameName, slots) {
     category = await ctx.guild.channels.fetch(categoryId).catch(() => null);
   }
   if (!category) {
-    // Buscar una categoría de voz existente o usar la primera disponible
     category = ctx.guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && 
       c.children.cache.some(ch => ch.type === ChannelType.GuildVoice));
   }
 
   try {
-    // Crear canal de voz temporal
     const voiceChannel = await ctx.guild.channels.create({
       name: `🎮 ${gameName.slice(0, 20)}`,
       type: ChannelType.GuildVoice,
       parent: category?.id || null,
       userLimit: maxSlots,
       permissionOverwrites: [
-        {
-          id: ctx.guild.id,
-          deny: [PermissionFlagsBits.Connect]
-        },
-        {
-          id: ctx.userId,
-          allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers]
-        },
-        {
-          id: botMember.id,
-          allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers]
-        }
+        { id: ctx.guild.id, deny: [PermissionFlagsBits.Connect] },
+        { id: ctx.userId, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers] },
+        { id: botMember.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers] }
       ]
     });
 
-    // Datos del LFG
     const lfgData = {
       hostId: ctx.userId,
       hostName: ctx.username,
@@ -82,33 +75,31 @@ async function cmdLFG(ctx, gameName, slots) {
       voiceChannelId: voiceChannel.id
     };
 
-    // Función para generar embed
     const makeLFGEmbed = (data) => {
       const filled = data.members.length;
       const bar = '🟢'.repeat(filled) + '⬛'.repeat(data.slots - filled);
       const userColor = entry.profileColor || 0x1900ff;
       return new EmbedBuilder()
-        .setTitle(`🎮 LFG — ${data.gameName}`)
+        .setTitle(`🎮 ${data.gameName}`)
         .setColor(filled >= data.slots ? 0xED4245 : 0x57F287)
         .setDescription(
-          `**Anfitrión:** ${data.robloxName} (@${data.hostName})\n` +
-          `**Jugadores:** ${bar} ${filled}/${data.slots}\n` +
-          `**Canal de voz:** ${voiceChannel.name}\n\n` +
-          `**Miembros:**\n${data.members.map((m, i) => `${i + 1}. ${m.roblox} (@${m.name})`).join('\n')}`
+          `${await t(lang, 'host')}: ${data.robloxName} (@${data.hostName})\n` +
+          `${await t(lang, 'players')}: ${bar} ${filled}/${data.slots}\n` +
+          `${await t(lang, 'voice_channel')}: ${voiceChannel.name}\n\n` +
+          `${await t(lang, 'members')}:\n${data.members.map((m, i) => `${i + 1}. ${m.roblox} (@${m.name})`).join('\n')}`
         )
-        .setFooter({ text: filled >= data.slots ? '🔴 Grupo lleno' : '🟢 Abierto — toca los botones para unirte/salir' })
+        .setFooter({ text: filled >= data.slots ? await t(lang, 'group_full') : await t(lang, 'group_open') })
         .setTimestamp();
     };
 
-    // Botones
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('lfg_join').setLabel('✅ Unirse').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('lfg_leave').setLabel('❌ Salir').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('lfg_close').setLabel('🔒 Cerrar').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('lfg_join').setLabel('✅ ' + (await t(lang, 'join'))).setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId('lfg_leave').setLabel('❌ ' + (await t(lang, 'leave'))).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('lfg_close').setLabel('🔒 ' + (await t(lang, 'close'))).setStyle(ButtonStyle.Danger),
     );
 
     const msg = await ctx.replyAndFetch({ 
-      content: `🔊 **Canal de voz creado:** ${voiceChannel}\nÚnete al canal y usa los botones para gestionar el grupo.`,
+      content: `🔊 ${await t(lang, 'voice_channel_created')}: ${voiceChannel}\n${await t(lang, 'join_voice_and_manage')}`,
       embeds: [makeLFGEmbed(lfgData)], 
       components: [row] 
     });
@@ -119,7 +110,6 @@ async function cmdLFG(ctx, gameName, slots) {
 
     await db.saveLFG(msg.id, lfgData);
 
-    // Collector para botones (30 minutos)
     const collector = msg.createMessageComponentCollector({ 
       componentType: ComponentType.Button, 
       time: 30 * 60 * 1000 
@@ -130,26 +120,19 @@ async function cmdLFG(ctx, gameName, slots) {
       
       if (i.customId === 'lfg_join') {
         if (data.members.find(m => m.id === i.user.id)) {
-          return i.reply({ content: '❌ Ya estás en el grupo.', ephemeral: true });
+          return i.reply({ content: await t(lang, 'already_in_group'), ephemeral: true });
         }
         if (data.members.length >= data.slots) {
-          return i.reply({ content: '❌ El grupo está lleno.', ephemeral: true });
+          return i.reply({ content: await t(lang, 'group_full'), ephemeral: true });
         }
         
         const userEntry = await db.getUser(i.user.id);
         const robloxName = userEntry?.robloxUsername ?? i.user.username;
         
-        data.members.push({ 
-          id: i.user.id, 
-          name: i.user.username, 
-          roblox: robloxName 
-        });
+        data.members.push({ id: i.user.id, name: i.user.username, roblox: robloxName });
         await db.saveLFG(msg.id, data);
         
-        // Dar permiso de conexión al nuevo miembro
-        await voiceChannel.permissionOverwrites.edit(i.user.id, {
-          Connect: true
-        }).catch(() => {});
+        await voiceChannel.permissionOverwrites.edit(i.user.id, { Connect: true }).catch(() => {});
         
         await i.update({ 
           embeds: [makeLFGEmbed(data)], 
@@ -158,35 +141,32 @@ async function cmdLFG(ctx, gameName, slots) {
         
       } else if (i.customId === 'lfg_leave') {
         if (i.user.id === data.hostId) {
-          return i.reply({ content: '❌ El anfitrión no puede salir. Usa 🔒 Cerrar para terminar el grupo.', ephemeral: true });
+          return i.reply({ content: await t(lang, 'host_cannot_leave'), ephemeral: true });
         }
         
         const index = data.members.findIndex(m => m.id === i.user.id);
         if (index === -1) {
-          return i.reply({ content: '❌ No estás en el grupo.', ephemeral: true });
+          return i.reply({ content: await t(lang, 'not_in_group'), ephemeral: true });
         }
         
         data.members.splice(index, 1);
         await db.saveLFG(msg.id, data);
         
-        // Quitar permiso de conexión
         await voiceChannel.permissionOverwrites.delete(i.user.id).catch(() => {});
         
         await i.update({ embeds: [makeLFGEmbed(data)], components: [row] });
         
       } else if (i.customId === 'lfg_close') {
         if (i.user.id !== data.hostId) {
-          return i.reply({ content: '❌ Solo el anfitrión puede cerrar el grupo.', ephemeral: true });
+          return i.reply({ content: await t(lang, 'only_host_can_close'), ephemeral: true });
         }
         
         collector.stop();
         await db.deleteLFG(msg.id);
-        
-        // Eliminar canal de voz
         await voiceChannel.delete().catch(() => {});
         
         await i.update({ 
-          embeds: [makeLFGEmbed(data).setColor(0xED4245).setFooter({ text: '🔒 Grupo cerrado por el anfitrión' })], 
+          embeds: [makeLFGEmbed(data).setColor(0xED4245).setFooter({ text: await t(lang, 'group_closed') })], 
           components: [] 
         });
       }
@@ -195,40 +175,39 @@ async function cmdLFG(ctx, gameName, slots) {
     collector.on('end', async () => {
       await msg.edit({ components: [] }).catch(() => {});
       await db.deleteLFG(msg.id);
-      // Eliminar canal de voz si aún existe
       await voiceChannel.delete().catch(() => {});
     });
 
   } catch (error) {
     console.error('Error creando LFG:', error);
-    ctx.reply({ content: '❌ Ocurrió un error al crear el canal de voz. Verifica los permisos del bot.', ephemeral: true });
+    replyEmbed(ctx, 'error', 'lfg_error', 0xED4245, true);
   }
 }
 
 // ──────────────────────────────────────────────────────────────
 //  Sugerencias
 // ──────────────────────────────────────────────────────────────
-
 async function cmdSugerencia(ctx, text) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const clean = sanitizeText(text, 500);
-  if (!clean || clean.length < 10) return ctx.reply({ content: '❌ La sugerencia debe tener al menos 10 caracteres.', ephemeral: true });
+  if (!clean || clean.length < 10) return replyEmbed(ctx, 'error', 'suggestion_too_short', 0xED4245, true);
   
   const config = await db.getGuildConf(ctx.guild.id);
-  if (!config?.suggestionChannelId) return ctx.reply({ content: '❌ El servidor no tiene canal de sugerencias configurado.', ephemeral: true });
+  if (!config?.suggestionChannelId) return replyEmbed(ctx, 'error', 'suggestions_not_configured', 0xED4245, true);
   
   const channel = await ctx.guild.channels.fetch(config.suggestionChannelId).catch(() => null);
-  if (!channel) return ctx.reply({ content: '❌ No pude encontrar el canal de sugerencias.', ephemeral: true });
+  if (!channel) return replyEmbed(ctx, 'error', 'suggestions_channel_not_found', 0xED4245, true);
   
   const entry = await db.getUser(ctx.userId);
   const userColor = entry?.profileColor || 0x1900ff;
   
   const embed = new EmbedBuilder()
-    .setTitle('💡 Nueva sugerencia')
+    .setTitle(await t(lang, 'new_suggestion'))
     .setDescription(clean)
     .setColor(userColor)
     .addFields(
-      { name: '👤 Autor', value: `<@${ctx.userId}> (${ctx.username})`, inline: true },
-      { name: '🎮 Roblox', value: entry ? `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)` : '_No vinculado_', inline: true },
+      { name: await t(lang, 'author'), value: `<@${ctx.userId}> (${ctx.username})`, inline: true },
+      { name: '🎮 Roblox', value: entry ? `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)` : '_' + (await t(lang, 'not_linked')) + '_', inline: true },
     )
     .setFooter({ text: `ID: ${ctx.userId}` })
     .setTimestamp();
@@ -239,7 +218,7 @@ async function cmdSugerencia(ctx, text) {
   );
   
   const suggMsg = await channel.send({ embeds: [embed], components: [row] });
-  ctx.reply({ content: `✅ Sugerencia enviada a <#${config.suggestionChannelId}>!`, ephemeral: true });
+  ctx.reply({ content: await t(lang, 'suggestion_sent', config.suggestionChannelId), ephemeral: true });
   
   const votes = { up: new Set(), down: new Set() };
   const collector = suggMsg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 86400000 });
@@ -265,12 +244,13 @@ async function cmdSugerencia(ctx, text) {
 }
 
 async function cmdSetSuggestions(ctx, channelId) {
+  const lang = await getGuildLang(ctx.guild?.id);
   if (!ctx.guild.members.cache.get(ctx.userId)?.permissions.has(PermissionFlagsBits.ManageGuild))
-    return ctx.reply({ content: t(await getGuildLang(ctx.guild.id), 'need_manage_guild'), ephemeral: true });
+    return replyEmbed(ctx, 'error', 'need_manage_guild', 0xED4245, true);
   const config = await db.getGuildConf(ctx.guild.id) ?? {};
   config.suggestionChannelId = channelId;
   await db.saveGuildConf(ctx.guild.id, config);
-  ctx.reply(`✅ Canal de sugerencias: <#${channelId}>`);
+  replyEmbed(ctx, 'success', 'admin_setsuggestions', 0x57F287, false, [channelId]);
 }
 
 module.exports = {
