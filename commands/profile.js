@@ -239,11 +239,18 @@ async function cmdGrupos(ctx, targetUser) {
   if (!groups.length) return ctx.reply(`**${entry.robloxUsername}** ` + (await t(lang, 'no_groups_public')));
   const userColor = entry.profileColor || 0x1900ff;
   const pages = [];
-  for (let i = 0; i < groups.length; i += 5)
-    pages.push(new EmbedBuilder().setTitle(await t(lang, 'groups_of', entry.robloxUsername)).setColor(userColor)
-      .setDescription(groups.slice(i, i + 5).map(g =>
-        `**[${g.group.name}](https://www.roblox.com/groups/${g.group.id})**\n› ${await t(lang, 'role')}: **${g.role.name}** · ${await t(lang, 'rank')} \`${g.role.rank}\``
-      ).join('\n\n')).setFooter({ text: `${groups.length} ${await t(lang, 'total_groups')}` }));
+  for (let i = 0; i < groups.length; i += 5) {
+    const groupTexts = await Promise.all(groups.slice(i, i + 5).map(async (g) => {
+      const roleText = await t(lang, 'role');
+      const rankText = await t(lang, 'rank');
+      return `**[${g.group.name}](https://www.roblox.com/groups/${g.group.id})**\n› ${roleText}: **${g.role.name}** · ${rankText} \`${g.role.rank}\``;
+    }));
+    pages.push(new EmbedBuilder()
+      .setTitle(await t(lang, 'groups_of', entry.robloxUsername))
+      .setColor(userColor)
+      .setDescription(groupTexts.join('\n\n'))
+      .setFooter({ text: `${groups.length} ${await t(lang, 'total_groups')}` }));
+  }
   await paginate(ctx, pages);
 }
 
