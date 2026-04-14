@@ -303,6 +303,7 @@ client.on('interactionCreate', async (interaction) => {
       case 'ownercolor':       await cmd.cmdOwnerColor(ctx, interaction.options.getString('color')); break;
       case 'cambiarcolor':     await cmd.cmdCambiarColor(ctx, interaction.options.getString('id')); break;
       case 'buy':              await cmd.cmdBuyPremium(ctx); break;
+      case 'fianza':           await cmd.cmdFianza(ctx, interaction.options.getUser('usuario')); break;
     }
     // Incrementar contador global de comandos
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
@@ -446,6 +447,7 @@ client.on('messageCreate', async (message) => {
       case 'setpuntos':           await cmd.cmdSetPuntos(ctx, users[0], parseInt(args[1])); break;
       case 'addpuntos':           await cmd.cmdAddPuntos(ctx, users[0], parseInt(args[1])); break;
       case 'buy':                 await cmd.cmdBuyPremium(ctx); break;
+      case 'fianza':              await cmd.cmdFianza(ctx, users[0]); break;
     }
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
     await redisSet('total_commands_executed', totalCmds + 1);
