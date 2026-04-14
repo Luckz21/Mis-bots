@@ -310,8 +310,133 @@ async function cmdFianza(ctx, targetUser) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Rankings, Tienda, Comprar (se mantienen con ligeros ajustes)
+//  Top Local
 // ──────────────────────────────────────────────────────────────
+
+async function cmdTopLocal(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const members = await ctx.guild.members.fetch();
+  const ecoList = [];
+  for (const [id] of members) {
+    const eco = await db.getEconomy(id);
+    if (eco?.points) ecoList.push({ id, username: members.get(id)?.user.username ?? id, points: eco.points });
+  }
+  ecoList.sort((a, b) => b.points - a.points);
+  const top10 = ecoList.slice(0, 10);
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
+  
+  const pointsText = await t(lang, 'points');
+  const noDataText = await t(lang, 'no_data');
+  const description = top10.length 
+    ? top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${pointsText}`).join('\n')
+    : noDataText;
+  
+  const embed = new EmbedBuilder()
+    .setTitle(await t(lang, 'lb_local_title'))
+    .setColor(userColor)
+    .setDescription(description)
+    .setFooter({ text: await t(lang, 'earn_points_daily') });
+  
+  ctx.reply({ embeds: [embed] });
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Top Global
+// ──────────────────────────────────────────────────────────────
+
+async function cmdTopGlobal(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const global = await redisGet('leaderboard_global') ?? [];
+  global.sort((a, b) => b.points - a.points);
+  const top10 = global.slice(0, 10);
+  const userEntry = await db.getUser(ctx.userId);
+  const userColor = userEntry?.profileColor || 0x1900ff;
+  
+  const pointsText = await t(lang, 'points');
+  const noDataText = await t(lang, 'no_data');
+  const description = top10.length 
+    ? top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${pointsText}`).join('\n')
+    : noDataText;
+  
+  const embed = new EmbedBuilder()
+    .setTitle(await t(lang, 'lb_global_title'))
+    .setColor(userColor)
+    .setDescription(description)
+    .setFooter({ text: '🌍 Ranking global del bot' });
+  
+  ctx.reply({ embeds: [embed] });
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Tienda
+// ──────────────────────────────────────────────────────────────
+
+async function cmdTienda(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const userEntry = await db.getUser(ctx.userId);
+  const inventory = userEntry?.inventory ?? [];
+  const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
+  const userColor = userEntry?.profileColor || 0x1900ff;
+  
+  const pointsText = await t(lang, 'points');
+  const shopFooterText = await t(lang, 'shop_footer');
+  
+  const embed = new EmbedBuilder()
+    .setTitle(await t(lang, 'shop_title'))
+    .setColor(userColor)
+    .setDescription(
+      SHOP_ITEMS.map(item => {
+        const owned = inventory.includes(item.id) || isOwner;
+        const status = owned ? '✅' : '🔒';
+        return `${status} **${item.name}** — \`${item.cost}\` ${pointsText}\nID: \`${item.id}\``;
+      }).join('\n\n')
+    )
+    .setFooter({ text: shopFooterText });
+  
+  ctx.reply({ embeds: [embed] });
+}
+
+// ──────────────────────────────────────────────────────────────
+//  Comprar
+// ──────────────────────────────────────────────────────────────
+
+async function cmdComprar(ctx, itemId) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const item = SHOP_ITEMS.find(i => i.id === itemId);
+  if (!item) return replyEmbed(ctx, 'error', 'shop_not_found', 0xED4245, true);
+  
+  const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
+  const eco = await db.getEconomy(ctx.userId) ?? { points: 0, shopPurchases: 0 };
+  const profile = await db.getUser(ctx.userId) ?? {};
+  if (!profile.inventory) profile.inventory = [];
+  
+  if (profile.inventory.includes(item.id)) return replyEmbed(ctx, 'error', 'shop_already_owned', 0xED4245, true);
+  
+  if (!isOwner) {
+    if (eco.points < item.cost) return replyEmbed(ctx, 'error', 'shop_no_points', 0xED4245, true, [item.cost, eco.points]);
+    eco.points -= item.cost;
+    eco.shopPurchases = (eco.shopPurchases ?? 0) + 1;
+  }
+  
+  profile.inventory.push(item.id);
+  if (item.type === 'color') profile.profileColor = item.value;
+  await db.saveUser(ctx.userId, profile);
+  if (!isOwner) await db.saveEconomy(ctx.userId, eco);
+  
+  const user = await db.getUser(ctx.userId);
+  await checkAchievements(ctx.userId, eco, user);
+  
+  const embed = new EmbedBuilder()
+    .setTitle(await t(lang, 'shop_buy_embed_title'))
+    .setColor(0x57F287)
+    .setDescription(isOwner 
+      ? `👑 Como dueño, recibiste **${item.name}** gratis.`
+      : await t(lang, 'shop_buy_embed_desc', item.name, item.cost, eco.points))
+    .setFooter({ text: await t(lang, 'shop_footer') });
+  
+  ctx.reply({ embeds: [embed], ephemeral: true });
+}
 
 // ... (mantén cmdTopLocal, cmdTopGlobal, cmdTienda, cmdComprar como antes)
 
