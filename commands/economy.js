@@ -275,10 +275,18 @@ async function cmdTopLocal(ctx) {
   const top10 = ecoList.slice(0, 10);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
+  
+  const pointsText = await t(lang, 'points');
+  const noDataText = await t(lang, 'no_data');
+  
+  const description = top10.length 
+    ? top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${pointsText}`).join('\n')
+    : noDataText;
+  
   const embed = new EmbedBuilder()
     .setTitle(await t(lang, 'lb_local_title'))
     .setColor(userColor)
-    .setDescription(top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${await t(lang, 'points')}`).join('\n') || await t(lang, 'no_data'));
+    .setDescription(description);
   ctx.reply({ embeds: [embed] });
 }
 
@@ -289,10 +297,18 @@ async function cmdTopGlobal(ctx) {
   const top10 = global.slice(0, 10);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
+  
+  const pointsText = await t(lang, 'points');
+  const noDataText = await t(lang, 'no_data');
+  
+  const description = top10.length 
+    ? top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${pointsText}`).join('\n')
+    : noDataText;
+  
   const embed = new EmbedBuilder()
     .setTitle(await t(lang, 'lb_global_title'))
     .setColor(userColor)
-    .setDescription(top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${await t(lang, 'points')}`).join('\n') || await t(lang, 'no_data'));
+    .setDescription(description);
   ctx.reply({ embeds: [embed] });
 }
 
