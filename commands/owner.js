@@ -22,6 +22,7 @@ async function cmdActivarPremium(ctx, targetId, dias) {
   if (!premiumList.includes(targetId)) { premiumList.push(targetId); await redisSet('premium_users_list', premiumList); }
   replyEmbed(ctx, 'success', 'owner_activarpremium', 0x57F287, false, [targetId, dias ? ` por ${dias} días` : ' permanentemente']);
 }
+
 async function cmdDesactivarPremium(ctx, targetId) {
   if (ctx.userId !== process.env.BOT_OWNER_ID) return replyEmbed(ctx, 'error', 'owner_only', 0xED4245, true);
   if (!targetId) return replyEmbed(ctx, 'error', 'provide_user_id', 0xED4245, true);
@@ -33,18 +34,21 @@ async function cmdDesactivarPremium(ctx, targetId) {
   await redisSet('premium_users_list', newList);
   replyEmbed(ctx, 'success', 'owner_desactivarpremium', 0x57F287, false, [targetId]);
 }
+
 async function cmdEncarcelar(ctx, targetUser, horas = 1) {
   if (ctx.userId !== process.env.BOT_OWNER_ID) return replyEmbed(ctx, 'error', 'owner_only', 0xED4245, true);
   const until = new Date(Date.now() + horas * 3600000).toISOString();
   await redisSet(`jailed:${targetUser.id}`, { until, reason: 'owner_action' });
   const gifUrl = await getAnimeGif('handcuff');
+  const lang = await getGuildLang(ctx.guild?.id);
   const embed = new EmbedBuilder()
-    .setTitle(await t(await getGuildLang(ctx.guild?.id), 'owner_encarcelar_title'))
+    .setTitle(await t(lang, 'owner_encarcelar_title'))
     .setColor(0xED4245)
-    .setDescription(await t(await getGuildLang(ctx.guild?.id), 'owner_encarcelar_desc', targetUser.username, horas));
+    .setDescription(await t(lang, 'owner_encarcelar_desc', targetUser.username, horas));
   if (gifUrl) embed.setImage(gifUrl);
   ctx.reply({ embeds: [embed] });
 }
+
 async function cmdSetPuntos(ctx, targetUser, cantidad) {
   if (ctx.userId !== process.env.BOT_OWNER_ID) return replyEmbed(ctx, 'error', 'owner_only', 0xED4245, true);
   if (cantidad < 0) return replyEmbed(ctx, 'error', 'invalid_amount', 0xED4245, true);
@@ -53,6 +57,7 @@ async function cmdSetPuntos(ctx, targetUser, cantidad) {
   await db.saveEconomy(targetUser.id, eco);
   replyEmbed(ctx, 'success', 'owner_setpuntos', 0x57F287, false, [targetUser.username, cantidad]);
 }
+
 async function cmdAddPuntos(ctx, targetUser, cantidad) {
   if (ctx.userId !== process.env.BOT_OWNER_ID) return replyEmbed(ctx, 'error', 'owner_only', 0xED4245, true);
   const eco = await db.getEconomy(targetUser.id) ?? { points: 0, totalEarned: 0 };
@@ -61,6 +66,7 @@ async function cmdAddPuntos(ctx, targetUser, cantidad) {
   await db.saveEconomy(targetUser.id, eco);
   replyEmbed(ctx, 'success', 'owner_addpuntos', 0x57F287, false, [cantidad, targetUser.username, eco.points]);
 }
+
 async function cmdOwnerColor(ctx, hexColor) {
   if (ctx.userId !== process.env.BOT_OWNER_ID) return replyEmbed(ctx, 'error', 'owner_only', 0xED4245, true);
   const entry = await db.getUser(ctx.userId);
@@ -70,6 +76,7 @@ async function cmdOwnerColor(ctx, hexColor) {
   await db.saveUser(ctx.userId, entry);
   replyEmbed(ctx, 'success', 'owner_ownercolor', 0x57F287, false, [hexColor]);
 }
+
 async function cmdCambiarColor(ctx, colorId) {
   if (ctx.userId !== process.env.BOT_OWNER_ID) return replyEmbed(ctx, 'error', 'owner_only', 0xED4245, true);
   const item = SHOP_ITEMS.find(i => i.id === colorId && i.type === 'color');
