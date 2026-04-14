@@ -322,6 +322,10 @@ async function cmdTienda(ctx) {
   const inventory = userEntry?.inventory ?? [];
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const userColor = userEntry?.profileColor || 0x1900ff;
+  
+  const pointsText = await t(lang, 'points');
+  const shopFooterText = await t(lang, 'shop_footer');
+  
   const embed = new EmbedBuilder()
     .setTitle(await t(lang, 'shop_title'))
     .setColor(userColor)
@@ -329,10 +333,10 @@ async function cmdTienda(ctx) {
       SHOP_ITEMS.map(item => {
         const owned = inventory.includes(item.id) || isOwner;
         const status = owned ? '✅' : '🔒';
-        return `${status} **${item.name}** — \`${item.cost}\` ${await t(lang, 'points')}\nID: \`${item.id}\``;
+        return `${status} **${item.name}** — \`${item.cost}\` ${pointsText}\nID: \`${item.id}\``;
       }).join('\n\n')
     )
-    .setFooter({ text: await t(lang, 'shop_footer') });
+    .setFooter({ text: shopFooterText });
   ctx.reply({ embeds: [embed] });
 }
 
@@ -353,6 +357,20 @@ async function cmdComprar(ctx, itemId) {
     eco.points -= item.cost;
     eco.shopPurchases = (eco.shopPurchases ?? 0) + 1;
   }
+  
+  profile.inventory.push(item.id);
+  if (item.type === 'color') profile.profileColor = item.value;
+  await db.saveUser(ctx.userId, profile);
+  if (!isOwner) await db.saveEconomy(ctx.userId, eco);
+  
+  const user = await db.getUser(ctx.userId);
+  await checkAchievements(ctx.userId, eco, user);
+  
+  const successMsg = isOwner 
+    ? `👑 Como dueño,amo,señor,wapo,rey,hermoso,precioso que eres recibiste **${item.name}** gratis.`
+    : await t(lang, 'shop_buy_success', item.name, item.cost);
+  replyEmbed(ctx, 'success', 'shop_buy_success', 0x57F287, true, [item.name, item.cost]);
+}
   
   profile.inventory.push(item.id);
   if (item.type === 'color') profile.profileColor = item.value;
