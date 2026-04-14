@@ -21,7 +21,6 @@ const {
 const { t } = require('./utils/translate');
 const { ACHIEVEMENTS, SHOP_ITEMS } = require('./utils/constants');
 
-// Helper para respuestas rápidas con embed
 async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = false, args = []) {
   const lang = await getGuildLang(ctx.guild?.id);
   const title = await t(lang, titleKey, ...args);
@@ -31,7 +30,7 @@ async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = 
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Consulta de puntos y daily
+//  Puntos y Daily
 // ──────────────────────────────────────────────────────────────
 
 async function cmdPuntos(ctx, targetUser) {
@@ -90,10 +89,8 @@ async function cmdDaily(ctx) {
     .setFooter({ text: `${rank.name} · ${await t(lang, 'come_back_tomorrow')}` });
   if (premium) embed.addFields({ name: '⭐ Premium', value: await t(lang, 'premium_bonus_applied') });
   if (newAchs.length) embed.addFields({ name: await t(lang, 'new_achievements'), value: newAchs.map(a => `**${a.name}** — ${a.desc}`).join('\n') });
-  
   const gifUrl = await getAnimeGif('smile');
   if (gifUrl) embed.setImage(gifUrl);
-  
   ctx.reply({ embeds: [embed] });
 }
 
@@ -127,16 +124,18 @@ async function cmdCoinFlip(ctx, betStr) {
   const bet = parseInt(betStr);
   if (!bet || bet < 10 || bet > (eco.points ?? 0))
     return replyEmbed(ctx, 'invalid_bet', 'coinflip_bet_range', 0xED4245, false, [eco.points ?? 0]);
-  const win     = Math.random() > 0.5;
-  eco.points    = (eco.points ?? 0) + (win ? bet : -bet);
+  const win = Math.random() > 0.5;
+  eco.points = (eco.points ?? 0) + (win ? bet : -bet);
   eco.totalEarned = win ? (eco.totalEarned ?? 0) + bet : eco.totalEarned;
   await db.saveEconomy(ctx.userId, eco);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
+  const winText = await t(lang, 'won');
+  const loseText = await t(lang, 'lost');
   ctx.reply({ embeds: [new EmbedBuilder()
     .setTitle(win ? await t(lang, 'coinflip_win') : await t(lang, 'coinflip_lose'))
     .setColor(win ? 0x57F287 : 0xED4245)
-    .setDescription(await t(lang, 'coinflip_result', bet, win ? await t(lang, 'won') : await t(lang, 'lost'), bet))
+    .setDescription(await t(lang, 'coinflip_result', bet, win ? winText : loseText, bet))
     .addFields({ name: await t(lang, 'current_balance'), value: `**${eco.points}** ${await t(lang, 'points')}` })] });
 }
 
@@ -145,25 +144,24 @@ async function cmdPay(ctx, targetUser, amountStr) {
   if (!targetUser) return replyEmbed(ctx, 'error', 'mention_user', 0xED4245, true);
   if (targetUser.id === ctx.userId) return replyEmbed(ctx, 'error', 'pay_self', 0xED4245, true);
   const amount = parseInt(amountStr);
-  const eco    = await db.getEconomy(ctx.userId) ?? { points: 0 };
+  const eco = await db.getEconomy(ctx.userId) ?? { points: 0 };
   if (!amount || amount < 1 || amount > (eco.points ?? 0))
     return replyEmbed(ctx, 'error', 'pay_insufficient', 0xED4245, true, [eco.points ?? 0]);
-  const targetEco   = await db.getEconomy(targetUser.id) ?? { points: 0 };
-  eco.points       -= amount;
-  targetEco.points  = (targetEco.points ?? 0) + amount;
+  const targetEco = await db.getEconomy(targetUser.id) ?? { points: 0 };
+  eco.points -= amount;
+  targetEco.points = (targetEco.points ?? 0) + amount;
   await Promise.all([db.saveEconomy(ctx.userId, eco), db.saveEconomy(targetUser.id, targetEco)]);
   replyEmbed(ctx, 'success', 'pay_success', 0x57F287, false, [amount, targetUser.username]);
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Robo (con encarcelamiento)
+//  Robo
 // ──────────────────────────────────────────────────────────────
 
 async function cmdRob(ctx, targetUser) {
   const lang = await getGuildLang(ctx.guild?.id);
   if (!targetUser) return replyEmbed(ctx, 'error', 'mention_user', 0xED4245, true);
   if (targetUser.id === ctx.userId) return replyEmbed(ctx, 'error', 'rob_self', 0xED4245, true);
-  
   if (targetUser.id === process.env.BOT_OWNER_ID) {
     if (ctx.userId === '752391528475000933') {
       return ctx.reply({ content: '¿Como se atreve un simple femboy a morder la mano su alfa? 🥵', ephemeral: true });
@@ -171,34 +169,27 @@ async function cmdRob(ctx, targetUser) {
     return replyEmbed(ctx, 'error', 'rob_owner_fail', 0xED4245, true);
   }
   if (ctx.userId === process.env.BOT_OWNER_ID) return replyEmbed(ctx, 'success', 'owner_no_rob', 0xFFD700, true);
-
   if (await isJailed(ctx.userId)) {
     const jailed = await redisGet(`jailed:${ctx.userId}`);
     const mins = Math.ceil((new Date(jailed.until) - new Date()) / 60000);
     return replyEmbed(ctx, 'jailed', 'rob_jailed', 0xED4245, true, [mins]);
   }
-  
   if (await isJailed(targetUser.id)) {
     return replyEmbed(ctx, 'error', 'rob_protected', 0xED4245, true, [targetUser.username]);
   }
-
   const eco = await db.getEconomy(ctx.userId) ?? { points: 0, successfulRobs: 0, failedRobs: 0, totalStolen: 0, timesJailed: 0, bailPaidCount: 0 };
   const targetEco = await db.getEconomy(targetUser.id) ?? { points: 0 };
-  
   if (targetEco.points < 50) return replyEmbed(ctx, 'error', 'rob_no_points', 0xED4245, true, [targetUser.username]);
-
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const success = isOwner ? true : (Math.random() < 0.4);
   const maxRob = Math.min(200, Math.floor(targetEco.points * 0.2));
   const amount = Math.floor(Math.random() * maxRob) + 20;
-
   if (success) {
     targetEco.points -= amount;
     eco.points += amount;
     eco.successfulRobs = (eco.successfulRobs ?? 0) + 1;
     eco.totalStolen = (eco.totalStolen ?? 0) + amount;
     await Promise.all([db.saveEconomy(ctx.userId, eco), db.saveEconomy(targetUser.id, targetEco)]);
-    
     const gifUrl = await getAnimeGif('kick');
     const embed = new EmbedBuilder()
       .setTitle(await t(lang, 'rob_success_title'))
@@ -206,7 +197,6 @@ async function cmdRob(ctx, targetUser) {
       .setDescription(await t(lang, 'rob_success', amount, targetUser.username));
     if (gifUrl) embed.setImage(gifUrl);
     await ctx.reply({ embeds: [embed] });
-    
     const user = await db.getUser(ctx.userId);
     await checkAchievements(ctx.userId, eco, user);
   } else {
@@ -214,26 +204,21 @@ async function cmdRob(ctx, targetUser) {
     eco.points -= fine;
     eco.failedRobs = (eco.failedRobs ?? 0) + 1;
     await db.saveEconomy(ctx.userId, eco);
-    
     const until = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     eco.timesJailed = (eco.timesJailed ?? 0) + 1;
     await db.saveEconomy(ctx.userId, eco);
     await redisSet(`jailed:${ctx.userId}`, { until, reason: 'robo_fallido' });
-    
     const gifUrl = await getAnimeGif('cry');
     const embed = new EmbedBuilder()
       .setTitle(await t(lang, 'rob_fail_title'))
       .setColor(0xED4245)
       .setDescription(await t(lang, 'rob_fail_desc', fine, targetUser.username));
     if (gifUrl) embed.setImage(gifUrl);
-    
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('pay_bail').setLabel('💰 ' + (await t(lang, 'pay_bail')) + ' (200)').setStyle(ButtonStyle.Primary),
     );
-    
     const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
     if (!msg) return;
-    
     const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 3600000 });
     collector.on('collect', async (i) => {
       if (i.user.id !== ctx.userId) return i.reply({ content: await t(lang, 'only_author'), ephemeral: true });
@@ -245,15 +230,12 @@ async function cmdRob(ctx, targetUser) {
       userEco.bailPaidCount = (userEco.bailPaidCount ?? 0) + 1;
       await db.saveEconomy(ctx.userId, userEco);
       await redisDel(`jailed:${ctx.userId}`);
-      
       const user = await db.getUser(ctx.userId);
       await checkAchievements(ctx.userId, userEco, user);
-      
       await i.update({ embeds: [embed.setFooter({ text: await t(lang, 'bail_paid') }).setColor(0x57F287)], components: [] });
       collector.stop();
     });
     collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
-    
     const user = await db.getUser(ctx.userId);
     await checkAchievements(ctx.userId, eco, user);
   }
@@ -275,14 +257,11 @@ async function cmdTopLocal(ctx) {
   const top10 = ecoList.slice(0, 10);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
-  
   const pointsText = await t(lang, 'points');
   const noDataText = await t(lang, 'no_data');
-  
   const description = top10.length 
     ? top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${pointsText}`).join('\n')
     : noDataText;
-  
   const embed = new EmbedBuilder()
     .setTitle(await t(lang, 'lb_local_title'))
     .setColor(userColor)
@@ -297,14 +276,11 @@ async function cmdTopGlobal(ctx) {
   const top10 = global.slice(0, 10);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
-  
   const pointsText = await t(lang, 'points');
   const noDataText = await t(lang, 'no_data');
-  
   const description = top10.length 
     ? top10.map((u, i) => `**${i+1}.** ${u.username} — **${u.points}** ${pointsText}`).join('\n')
     : noDataText;
-  
   const embed = new EmbedBuilder()
     .setTitle(await t(lang, 'lb_global_title'))
     .setColor(userColor)
@@ -313,7 +289,7 @@ async function cmdTopGlobal(ctx) {
 }
 
 // ──────────────────────────────────────────────────────────────
-//  Tienda y compras
+//  Tienda
 // ──────────────────────────────────────────────────────────────
 
 async function cmdTienda(ctx) {
@@ -322,10 +298,8 @@ async function cmdTienda(ctx) {
   const inventory = userEntry?.inventory ?? [];
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const userColor = userEntry?.profileColor || 0x1900ff;
-  
   const pointsText = await t(lang, 'points');
   const shopFooterText = await t(lang, 'shop_footer');
-  
   const embed = new EmbedBuilder()
     .setTitle(await t(lang, 'shop_title'))
     .setColor(userColor)
@@ -344,42 +318,25 @@ async function cmdComprar(ctx, itemId) {
   const lang = await getGuildLang(ctx.guild?.id);
   const item = SHOP_ITEMS.find(i => i.id === itemId);
   if (!item) return replyEmbed(ctx, 'error', 'shop_not_found', 0xED4245, true);
-  
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
   const eco = await db.getEconomy(ctx.userId) ?? { points: 0, shopPurchases: 0 };
   const profile = await db.getUser(ctx.userId) ?? {};
   if (!profile.inventory) profile.inventory = [];
-  
   if (profile.inventory.includes(item.id)) return replyEmbed(ctx, 'error', 'shop_already_owned', 0xED4245, true);
-  
   if (!isOwner) {
     if (eco.points < item.cost) return replyEmbed(ctx, 'error', 'shop_no_points', 0xED4245, true, [item.cost, eco.points]);
     eco.points -= item.cost;
     eco.shopPurchases = (eco.shopPurchases ?? 0) + 1;
   }
-  
   profile.inventory.push(item.id);
   if (item.type === 'color') profile.profileColor = item.value;
   await db.saveUser(ctx.userId, profile);
   if (!isOwner) await db.saveEconomy(ctx.userId, eco);
-  
   const user = await db.getUser(ctx.userId);
   await checkAchievements(ctx.userId, eco, user);
-  
   const successMsg = isOwner 
-    ? `👑 Como dueño,amo,señor,wapo,rey,hermoso,precioso que eres recibiste **${item.name}** gratis.`
+    ? `👑 Como dueño, recibiste **${item.name}** gratis.`
     : await t(lang, 'shop_buy_success', item.name, item.cost);
-  replyEmbed(ctx, 'success', 'shop_buy_success', 0x57F287, true, [item.name, item.cost]);
-}
-  
-  profile.inventory.push(item.id);
-  if (item.type === 'color') profile.profileColor = item.value;
-  await db.saveUser(ctx.userId, profile);
-  if (!isOwner) await db.saveEconomy(ctx.userId, eco);
-  
-  const user = await db.getUser(ctx.userId);
-  await checkAchievements(ctx.userId, eco, user);
-  
   replyEmbed(ctx, 'success', 'shop_buy_success', 0x57F287, true, [item.name, item.cost]);
 }
 
