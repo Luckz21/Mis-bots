@@ -28,7 +28,7 @@ async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = 
 
 async function cmdLFG(ctx, gameName, slots) {
   const lang = await getGuildLang(ctx.guild?.id);
-  if (!gameName) return replyEmbed(ctx, 'error', 'Uso incorrecto, usa el formato !lfg (GameName)', 0xED4245, true);
+  if (!gameName) return replyEmbed(ctx, 'error', 'Uso incorrecto, usa el formato cmd <game>', 0xED4245, true);
   
   const entry = await db.getUser(ctx.userId);
   if (!entry) return replyEmbed(ctx, 'error', 'no_linked_account', 0xED4245, true);
