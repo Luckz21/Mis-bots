@@ -20,16 +20,24 @@ async function cmdWhois(ctx, targetUser) {
   if (!entry) return replyEmbed(ctx, 'error', 'no_account', 0xED4245, true, [targetUser.username]);
   const [premium, avatarUrl] = await Promise.all([isPremium(targetUser.id), roblox.getAvatar(entry.robloxId)]);
   const userColor = entry.profileColor || 0x1900ff;
+  
+  const robloxAccountText = await t(lang, 'roblox_account');
+  const robloxIdText = await t(lang, 'roblox_id');
+  const yesText = await t(lang, 'yes');
+  const noText = await t(lang, 'no');
+  const verifiedOnText = await t(lang, 'verified_on');
+  const whoisFooterText = await t(lang, 'whois_footer');
+  
   const embed = new EmbedBuilder()
     .setTitle(await t(lang, 'whois_title', targetUser.username))
     .setColor(userColor).setThumbnail(avatarUrl)
     .addFields(
-      { name: '🎮 ' + await t(lang, 'roblox_account'), value: `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)`, inline: true },
-      { name: '🆔 ' + await t(lang, 'roblox_id'), value: `\`${entry.robloxId}\``, inline: true },
-      { name: '⭐ Premium', value: premium ? await t(lang, 'yes') : await t(lang, 'no'), inline: true },
-      { name: '📅 ' + await t(lang, 'verified_on'), value: new Date(entry.verifiedAt).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }), inline: true },
+      { name: '🎮 ' + robloxAccountText, value: `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)`, inline: true },
+      { name: '🆔 ' + robloxIdText, value: `\`${entry.robloxId}\``, inline: true },
+      { name: '⭐ Premium', value: premium ? yesText : noText, inline: true },
+      { name: '📅 ' + verifiedOnText, value: new Date(entry.verifiedAt).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }), inline: true },
     )
-    .setFooter({ text: await t(lang, 'whois_footer') });
+    .setFooter({ text: whoisFooterText });
   ctx.reply({ embeds: [embed] });
 }
 
