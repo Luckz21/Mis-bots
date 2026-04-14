@@ -1,5 +1,5 @@
 // ============================================================
-//  i18n.js  —  Sistema de multi-idioma (Ampliado y corregido)
+//  i18n.js  —  Sistema de multi-idioma (Completo)
 //  Idiomas: es (español), en (inglés), pt (portugués)
 // ============================================================
 
@@ -59,7 +59,7 @@ const translations = {
     lb_local_title:     '🏆 Top Puntos del Servidor',
     lb_global_title:    '🌍 Top Puntos Global',
 
-    // ========== NUEVAS CLAVES ==========
+    // ========== NUEVAS CLAVES (EMBEDS, GIFS, ECONOMÍA) ==========
     error: '❌ Error',
     success: '✅ Éxito',
     info: 'ℹ️ Información',
@@ -109,11 +109,13 @@ const translations = {
     achievements_of: '🏅 Logros de {0}',
     unlocked: 'desbloqueados',
     invalid_bet: 'Apuesta inválida',
-    coinflip_win: '🎉 ¡Ganaste el coinflip!',
-    coinflip_lose: '💀 Perdiste el coinflip',
-    coinflip_result: 'Apostaste **{0} puntos** y {1} **{2}** 🪙',
-    won: 'ganaste',
-    lost: 'perdiste',
+    coinflip_title_win: '🎉 ¡Ganaste el volado!',
+    coinflip_title_lose: '💔 Perdiste el volado...',
+    coinflip_desc_win: (bet, amount) => `Arriesgaste **${bet} monedas** y la suerte estuvo de tu lado.\n¡Ganaste **${amount} monedas** adicionales!`,
+    coinflip_desc_lose: (bet, amount) => `Arriesgaste **${bet} monedas** y la suerte no te acompañó.\nPerdiste **${amount} monedas**.`,
+    coinflip_balance: 'Tu saldo actual',
+    coinflip_footer_win: '¡Felicidades! Sigue apostando con inteligencia.',
+    coinflip_footer_lose: 'No te rindas. Mañana será otro día.',
     current_balance: '💰 Saldo actual',
     mention_user: 'Debes mencionar a un usuario.',
     no_data: 'No hay datos aún.',
@@ -389,9 +391,39 @@ const translations = {
     last_wall_posts: 'Últimas 5 publicaciones del muro público',
     status_unavailable: 'No pude obtener el estado de Roblox. Intenta en unos minutos.',
     source: 'Fuente',
+
+    // Fianza
+    bail_command_title: '🔓 Fianza pagada',
+    bail_success: (user, payer) => `**${user}** ha sido liberado de la cárcel gracias a **${payer}**.`,
+    bail_not_jailed: '❌ Ese usuario no está encarcelado.',
+    bail_insufficient_funds: '❌ No tienes suficientes monedas para pagar la fianza (200 monedas).',
+
+    // Robo dueño
+    owner_rob_success: (amount, target) => `👑 Como dueño, has robado exitosamente **${amount} monedas** a **${target}**.`,
+    rob_jail_offer_bail: 'Puedes pagar una fianza de 200 monedas para salir inmediatamente.',
+
+    // Pay
+    pay_success_embed_title: '💸 Transferencia exitosa',
+    pay_success_embed_desc: (amount, target) => `Has enviado **${amount} monedas** a **${target}**.`,
+    pay_success_footer: '¡La generosidad trae recompensas!',
+
+    // Daily
+    daily_claimed_embed_title: '🎁 Recompensa diaria reclamada',
+    daily_claimed_embed_desc: (reward, streak, total) => `¡Has recibido **${reward} monedas**!\nRacha actual: **${streak}** días.\nSaldo total: **${total}** monedas.`,
+    daily_premium_bonus: '⭐ Bonus Premium aplicado (x2)',
+
+    // Robo
+    rob_success_embed_title: '🦹 ¡Atraco exitoso!',
+    rob_success_embed_desc: (amount, target) => `¡Has robado **${amount} monedas** a **${target}**!`,
+    rob_fail_embed_title: '🚔 ¡Atraco fallido!',
+    rob_fail_embed_desc: (fine, target) => `¡Tu intento de robo a **${target}** fracasó!\nMulta: **${fine} monedas**.\nEstás en la cárcel por 1 hora.`,
+
+    // Tienda
+    shop_buy_embed_title: '🛍️ ¡Compra realizada!',
+    shop_buy_embed_desc: (item, cost, balance) => `Has adquirido **${item}** por **${cost} monedas**.\nTu nuevo saldo es **${balance} monedas**.`,
   },
+
   en: {
-    // Claves básicas (el resto se traducirá automáticamente con MyMemory)
     error: '❌ Error',
     success: '✅ Success',
     info: 'ℹ️ Information',
@@ -439,9 +471,34 @@ const translations = {
     reward: 'Reward',
     yes: 'Yes',
     no: 'No',
+    coinflip_title_win: '🎉 You won the coinflip!',
+    coinflip_title_lose: '💔 You lost the coinflip...',
+    coinflip_desc_win: (bet, amount) => `You risked **${bet} coins** and luck was on your side.\nYou won **${amount} extra coins**!`,
+    coinflip_desc_lose: (bet, amount) => `You risked **${bet} coins** and luck wasn't with you.\nYou lost **${amount} coins**.`,
+    coinflip_balance: 'Your current balance',
+    coinflip_footer_win: 'Congratulations! Keep betting wisely.',
+    coinflip_footer_lose: 'Don\'t give up. Tomorrow is another day.',
+    rob_success_embed_title: '🦹 Successful heist!',
+    rob_success_embed_desc: (amount, target) => `You stole **${amount} coins** from **${target}**!`,
+    rob_fail_embed_title: '🚔 Heist failed!',
+    rob_fail_embed_desc: (fine, target) => `Your attempt to rob **${target}** failed!\nFine: **${fine} coins**.\nYou are in jail for 1 hour.`,
+    rob_jail_offer_bail: 'You can pay a bail of 200 coins to get out immediately.',
+    bail_command_title: '🔓 Bail paid',
+    bail_success: (user, payer) => `**${user}** has been released from jail thanks to **${payer}**.`,
+    bail_not_jailed: '❌ That user is not in jail.',
+    bail_insufficient_funds: '❌ You don\'t have enough coins to pay the bail (200 coins).',
+    owner_rob_success: (amount, target) => `👑 As the owner, you successfully stole **${amount} coins** from **${target}**.`,
+    pay_success_embed_title: '💸 Transfer successful',
+    pay_success_embed_desc: (amount, target) => `You sent **${amount} coins** to **${target}**.`,
+    pay_success_footer: 'Generosity brings rewards!',
+    daily_claimed_embed_title: '🎁 Daily reward claimed',
+    daily_claimed_embed_desc: (reward, streak, total) => `You received **${reward} coins**!\nCurrent streak: **${streak}** days.\nTotal balance: **${total}** coins.`,
+    daily_premium_bonus: '⭐ Premium bonus applied (x2)',
+    shop_buy_embed_title: '🛍️ Purchase completed!',
+    shop_buy_embed_desc: (item, cost, balance) => `You bought **${item}** for **${cost} coins**.\nYour new balance is **${balance} coins**.`,
   },
+
   pt: {
-    // Claves básicas
     error: '❌ Erro',
     success: '✅ Sucesso',
     info: 'ℹ️ Informação',
@@ -489,10 +546,34 @@ const translations = {
     reward: 'Recompensa',
     yes: 'Sim',
     no: 'Não',
+    coinflip_title_win: '🎉 Você ganhou o cara ou coroa!',
+    coinflip_title_lose: '💔 Você perdeu o cara ou coroa...',
+    coinflip_desc_win: (bet, amount) => `Você arriscou **${bet} moedas** e a sorte esteve ao seu lado.\nVocê ganhou **${amount} moedas extras**!`,
+    coinflip_desc_lose: (bet, amount) => `Você arriscou **${bet} moedas** e a sorte não estava com você.\nVocê perdeu **${amount} moedas**.`,
+    coinflip_balance: 'Seu saldo atual',
+    coinflip_footer_win: 'Parabéns! Continue apostando com sabedoria.',
+    coinflip_footer_lose: 'Não desista. Amanhã é outro dia.',
+    rob_success_embed_title: '🦹 Roubo bem-sucedido!',
+    rob_success_embed_desc: (amount, target) => `Você roubou **${amount} moedas** de **${target}**!`,
+    rob_fail_embed_title: '🚔 Roubo falhou!',
+    rob_fail_embed_desc: (fine, target) => `Sua tentativa de roubar **${target}** falhou!\nMulta: **${fine} moedas**.\nVocê está na prisão por 1 hora.`,
+    rob_jail_offer_bail: 'Você pode pagar uma fiança de 200 moedas para sair imediatamente.',
+    bail_command_title: '🔓 Fiança paga',
+    bail_success: (user, payer) => `**${user}** foi libertado da prisão graças a **${payer}**.`,
+    bail_not_jailed: '❌ Esse usuário não está preso.',
+    bail_insufficient_funds: '❌ Você não tem moedas suficientes para pagar a fiança (200 moedas).',
+    owner_rob_success: (amount, target) => `👑 Como proprietário, você roubou com sucesso **${amount} moedas** de **${target}**.`,
+    pay_success_embed_title: '💸 Transferência bem-sucedida',
+    pay_success_embed_desc: (amount, target) => `Você enviou **${amount} moedas** para **${target}**.`,
+    pay_success_footer: 'A generosidade traz recompensas!',
+    daily_claimed_embed_title: '🎁 Recompensa diária resgatada',
+    daily_claimed_embed_desc: (reward, streak, total) => `Você recebeu **${reward} moedas**!\nSequência atual: **${streak}** dias.\nSaldo total: **${total}** moedas.`,
+    daily_premium_bonus: '⭐ Bônus Premium aplicado (x2)',
+    shop_buy_embed_title: '🛍️ Compra realizada!',
+    shop_buy_embed_desc: (item, cost, balance) => `Você comprou **${item}** por **${cost} moedas**.\nSeu novo saldo é **${balance} moedas**.`,
   },
 };
 
-// Obtener texto en el idioma del servidor (default: español)
 function t(guildLang, key, ...args) {
   const lang   = translations[guildLang] ?? translations.es;
   const fallback = translations.es;
