@@ -1,24 +1,27 @@
 // commands/robloxCommands.js
-const {
-  EmbedBuilder
-} = require('discord.js');
-
+const { EmbedBuilder } = require('discord.js');
 const { sanitizeText } = require('../security');
 const { db } = require('./utils/database');
 const roblox = require('./utils/roblox');
-const { paginate } = require('./utils/helpers');
+const { paginate, getGuildLang } = require('./utils/helpers');
+const { t } = require('./utils/translate');
 
-// ──────────────────────────────────────────────────────────────
-//  Catálogo de Roblox
-// ──────────────────────────────────────────────────────────────
+async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = false, args = []) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  const title = await t(lang, titleKey, ...args);
+  const description = await t(lang, descKey, ...args);
+  const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor(color);
+  return ctx.reply({ embeds: [embed], ephemeral });
+}
 
 async function cmdCatalogo(ctx, query) {
   const clean = sanitizeText(query, 100);
-  if (!clean) return ctx.reply({ content: '❌ Uso: `/catalogo <nombre del item>`', ephemeral: true });
+  if (!clean) return replyEmbed(ctx, 'error', 'invalid_search', 0xED4245, true);
   const items = await roblox.searchCatalog(clean);
-  if (!items.length) return ctx.reply({ content: '❌ No encontré items con ese nombre en el catálogo.', ephemeral: true });
+  if (!items.length) return replyEmbed(ctx, 'error', 'catalog_not_found', 0xED4245, true);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
+  const lang = await getGuildLang(ctx.guild?.id);
   const pages = [];
   for (let i = 0; i < Math.min(items.length, 5); i++) {
     const item = items[i];
@@ -26,66 +29,65 @@ async function cmdCatalogo(ctx, query) {
       roblox.getCatalogItem(item.id).catch(() => null),
       roblox.getCatalogThumbnail(item.id).catch(() => null),
     ]);
+    const idText = await t(lang, 'id');
+    const typeText = await t(lang, 'type');
+    const priceText = await t(lang, 'price');
+    const creatorText = await t(lang, 'creator');
     const embed = new EmbedBuilder()
       .setTitle(`🛍️ ${item.name}`)
       .setURL(`https://www.roblox.com/catalog/${item.id}`)
       .setColor(userColor);
     if (thumb) embed.setThumbnail(thumb);
     embed.addFields(
-      { name: '🆔 ID',       value: `\`${item.id}\``,                              inline: true },
-      { name: '📦 Tipo',     value: item.itemType ?? 'Desconocido',                 inline: true },
-      { name: '💰 Precio',   value: details?.PriceInRobux ? `R$ ${details.PriceInRobux}` : 'Gratis / No disponible', inline: true },
-      { name: '👤 Creador',  value: details?.Creator?.Name ?? 'Desconocido',        inline: true },
+      { name: `🆔 ${idText}`, value: `\`${item.id}\``, inline: true },
+      { name: `📦 ${typeText}`, value: item.itemType ?? await t(lang, 'unknown'), inline: true },
+      { name: `💰 ${priceText}`, value: details?.PriceInRobux ? `R$ ${details.PriceInRobux}` : await t(lang, 'free_or_unavailable'), inline: true },
+      { name: `👤 ${creatorText}`, value: details?.Creator?.Name ?? await t(lang, 'unknown'), inline: true },
     );
     pages.push(embed);
   }
   await paginate(ctx, pages);
 }
 
-// ──────────────────────────────────────────────────────────────
-//  Muro de grupo
-// ──────────────────────────────────────────────────────────────
-
 async function cmdMuroGrupo(ctx, groupId) {
-  if (!groupId || isNaN(groupId)) return ctx.reply({ content: '❌ Proporciona el ID numérico del grupo. Ej: `/murogrupo 12345`', ephemeral: true });
+  const lang = await getGuildLang(ctx.guild?.id);
+  if (!groupId || isNaN(groupId)) return replyEmbed(ctx, 'error', 'invalid_group_id', 0xED4245, true);
   const [groupInfo, posts] = await Promise.all([
     roblox.getGroupInfo(groupId),
     roblox.getGroupWall(groupId),
   ]);
-  if (!groupInfo) return ctx.reply({ content: '❌ No encontré ese grupo en Roblox. Verifica el ID.', ephemeral: true });
+  if (!groupInfo) return replyEmbed(ctx, 'error', 'group_not_found', 0xED4245, true);
   if (!posts.length) return ctx.reply(`El muro del grupo **${groupInfo.name}** está vacío o es privado.`);
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
+  const membersText = await t(lang, 'members');
   const embed = new EmbedBuilder()
     .setTitle(`📋 Muro de ${groupInfo.name}`)
     .setURL(`https://www.roblox.com/groups/${groupId}`)
     .setColor(userColor)
     .setDescription(
       posts.map((p, i) => {
-        const author = p.poster?.user?.username ?? 'Desconocido';
-        const date   = new Date(p.created).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-        const body   = p.body?.slice(0, 150) ?? '';
+        const author = p.poster?.user?.username ?? await t(lang, 'unknown');
+        const date = new Date(p.created).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        const body = p.body?.slice(0, 150) ?? '';
         return `**${i + 1}. ${author}** · ${date}\n${body}`;
       }).join('\n\n')
     )
-    .addFields({ name: '👥 Miembros', value: `${groupInfo.memberCount ?? '?'}`, inline: true })
-    .setFooter({ text: 'Últimas 5 publicaciones del muro público' });
+    .addFields({ name: `👥 ${membersText}`, value: `${groupInfo.memberCount ?? '?'}`, inline: true })
+    .setFooter({ text: await t(lang, 'last_wall_posts') });
   ctx.reply({ embeds: [embed] });
 }
 
-// ──────────────────────────────────────────────────────────────
-//  Estado de los servidores de Roblox
-// ──────────────────────────────────────────────────────────────
-
 async function cmdRobloxStatus(ctx) {
+  const lang = await getGuildLang(ctx.guild?.id);
   const status = await roblox.getRobloxStatus();
-  if (!status) return ctx.reply({ content: '❌ No pude obtener el estado de Roblox. Intenta en unos minutos.', ephemeral: true });
-  const overall  = status.status?.description ?? 'Desconocido';
+  if (!status) return replyEmbed(ctx, 'error', 'status_unavailable', 0xED4245, true);
+  const overall = status.status?.description ?? await t(lang, 'unknown');
   const indicator = status.status?.indicator;
-  const colorMap  = { none: 0x57F287, minor: 0xFEE75C, major: 0xED4245, critical: 0xED4245 };
-  const emojiMap  = { none: '✅', minor: '⚠️', major: '❌', critical: '🔴' };
+  const colorMap = { none: 0x57F287, minor: 0xFEE75C, major: 0xED4245, critical: 0xED4245 };
+  const emojiMap = { none: '✅', minor: '⚠️', major: '❌', critical: '🔴' };
   const components = (status.components ?? []).filter(c => !c.group).slice(0, 8);
-  const compStatus  = { operational: '✅ Operacional', degraded_performance: '⚠️ Degradado', partial_outage: '⚠️ Interrupción parcial', major_outage: '❌ Interrupción mayor', under_maintenance: '🔧 En mantenimiento' };
+  const compStatus = { operational: '✅ Operacional', degraded_performance: '⚠️ Degradado', partial_outage: '⚠️ Interrupción parcial', major_outage: '❌ Interrupción mayor', under_maintenance: '🔧 En mantenimiento' };
   const embed = new EmbedBuilder()
     .setTitle(`${emojiMap[indicator] ?? '❓'} Estado de Roblox`)
     .setURL('https://status.roblox.com')
@@ -93,24 +95,16 @@ async function cmdRobloxStatus(ctx) {
     .setDescription(`**Estado general:** ${overall}`)
     .setTimestamp();
   if (components.length) {
-    embed.addFields({ name: '🖥️ Servicios', value: components.map(c =>
-      `${compStatus[c.status] ?? '❓'} **${c.name}**`
-    ).join('\n') });
+    embed.addFields({ name: '🖥️ Servicios', value: components.map(c => `${compStatus[c.status] ?? '❓'} **${c.name}**`).join('\n') });
   }
   const incidents = (status.incidents ?? []).slice(0, 3);
   if (incidents.length) {
-    embed.addFields({ name: '⚠️ Incidentes activos', value: incidents.map(i =>
-      `**${i.name}** — ${i.status}`
-    ).join('\n') });
+    embed.addFields({ name: '⚠️ Incidentes activos', value: incidents.map(i => `**${i.name}** — ${i.status}`).join('\n') });
   }
   embed.addFields({ name: '🔗 Enlace directo', value: '[Ver estado en tiempo real](https://status.roblox.com)' });
-  embed.setFooter({ text: 'Fuente: status.roblox.com' });
+  embed.setFooter({ text: await t(lang, 'source') + ': status.roblox.com' });
   ctx.reply({ embeds: [embed] });
 }
-
-// ──────────────────────────────────────────────────────────────
-//  Exportaciones
-// ──────────────────────────────────────────────────────────────
 
 module.exports = {
   cmdCatalogo,
