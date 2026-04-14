@@ -52,13 +52,15 @@ async function cmdTrivia(ctx, category) {
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
   
+  // Pre-traducir todos los textos
   const secondsText = await t(lang, 'seconds');
   const todayText = await t(lang, 'today');
   const writeAnswerText = await t(lang, 'write_answer');
+  const categoryText = await t(lang, 'trivia_category', question.cat);
   const footerText = `${writeAnswerText} · 30 ${secondsText} · ${count + 1}/${limit} ${todayText}`;
   
   const embed = new EmbedBuilder()
-    .setTitle(`${catEmoji[question.cat] ?? '🎲'} ${await t(lang, 'trivia_category', question.cat)}`)
+    .setTitle(`${catEmoji[question.cat] ?? '🎲'} ${categoryText}`)
     .setDescription(`**${question.q}**`)
     .setColor(userColor)
     .setFooter({ text: footerText });
@@ -88,15 +90,36 @@ async function cmdTrivia(ctx, category) {
       const user = await db.getUser(m.author.id);
       await checkAchievements(m.author.id, eco, user);
       
-      const correctMsg = await t(lang, 'trivia_correct', question.a, m.author.id, reward, eco.points, count + 1, limit);
-      await m.reply(correctMsg);
+      // Preparar textos para el embed de respuesta
+      const correctTitle = await t(lang, 'trivia_correct_title');
+      const pointsText = await t(lang, 'points');
+      const balanceText = await t(lang, 'balance');
+      const questionsText = await t(lang, 'questions_today');
+      
+      const responseEmbed = new EmbedBuilder()
+        .setTitle(correctTitle)
+        .setColor(0x57F287)
+        .setDescription(await t(lang, 'trivia_correct_desc', question.a, m.author.username, reward, eco.points))
+        .addFields(
+          { name: '🎁 ' + await t(lang, 'reward'), value: `+${reward} ${pointsText}`, inline: true },
+          { name: '💰 ' + balanceText, value: `${eco.points} ${pointsText}`, inline: true },
+          { name: '📊 ' + questionsText, value: `${count + 1}/${limit}`, inline: true }
+        )
+        .setFooter({ text: await t(lang, 'trivia_correct_footer') });
+      
+      await m.reply({ embeds: [responseEmbed] });
     }
   });
 
   collector.on('end', async (collected, reason) => {
     if (!answered) {
-      const timeoutMsg = await t(lang, 'trivia_timeout', question.a);
-      channel.send(timeoutMsg).catch(() => {});
+      const timeoutTitle = await t(lang, 'trivia_timeout_title');
+      const timeoutDesc = await t(lang, 'trivia_timeout', question.a);
+      const timeoutEmbed = new EmbedBuilder()
+        .setTitle(timeoutTitle)
+        .setColor(0xED4245)
+        .setDescription(timeoutDesc);
+      channel.send({ embeds: [timeoutEmbed] }).catch(() => {});
     }
   });
 }
@@ -189,15 +212,32 @@ async function cmdTriviaCustom(ctx, subcommand, ...args) {
         eco.totalEarned = (eco.totalEarned ?? 0) + reward;
         await db.saveEconomy(ctx.userId, eco);
         
-        const correctMsg = await t(lang, 'trivia_custom_correct', reward, eco.points);
-        await m.reply(correctMsg);
+        const pointsText = await t(lang, 'points');
+        const balanceText = await t(lang, 'balance');
+        const correctTitle = await t(lang, 'trivia_correct_title');
+        
+        const responseEmbed = new EmbedBuilder()
+          .setTitle(correctTitle)
+          .setColor(0x57F287)
+          .setDescription(await t(lang, 'trivia_custom_correct_desc', reward, eco.points))
+          .addFields(
+            { name: '🎁 ' + await t(lang, 'reward'), value: `+${reward} ${pointsText}`, inline: true },
+            { name: '💰 ' + balanceText, value: `${eco.points} ${pointsText}`, inline: true }
+          );
+        
+        await m.reply({ embeds: [responseEmbed] });
       }
     });
     
     collector.on('end', async (collected, reason) => {
       if (!answered) {
-        const timeoutMsg = await t(lang, 'trivia_timeout', question.a);
-        ctx.channel.send(timeoutMsg).catch(() => {});
+        const timeoutTitle = await t(lang, 'trivia_timeout_title');
+        const timeoutDesc = await t(lang, 'trivia_timeout', question.a);
+        const timeoutEmbed = new EmbedBuilder()
+          .setTitle(timeoutTitle)
+          .setColor(0xED4245)
+          .setDescription(timeoutDesc);
+        ctx.channel.send({ embeds: [timeoutEmbed] }).catch(() => {});
       }
     });
     return;
