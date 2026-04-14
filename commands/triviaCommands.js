@@ -3,7 +3,6 @@ const { EmbedBuilder } = require('discord.js');
 const { db, redisGet, redisSet } = require('./utils/database');
 const { isPremium, getGuildLang, checkAchievements } = require('./utils/helpers');
 const { t } = require('./utils/translate');
-const roblox = require('./utils/roblox');
 
 const {
   getRandomQuestion: _getRandomQ,
@@ -26,6 +25,7 @@ async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = 
 // ──────────────────────────────────────────────────────────────
 //  Trivia normal
 // ──────────────────────────────────────────────────────────────
+
 async function cmdTrivia(ctx, category) {
   const lang = await getGuildLang(ctx.guild?.id);
   const channel = ctx.channel;
@@ -51,11 +51,17 @@ async function cmdTrivia(ctx, category) {
   const catEmoji = { Roblox: '🎮', Matemáticas: '🔢', Ciencias: '🔬', Historia: '📜', Geografía: '🌍', Tecnología: '💻', General: '🎯' };
   const userEntry = await db.getUser(ctx.userId);
   const userColor = userEntry?.profileColor || 0x1900ff;
+  
+  const secondsText = await t(lang, 'seconds');
+  const todayText = await t(lang, 'today');
+  const writeAnswerText = await t(lang, 'write_answer');
+  const footerText = `${writeAnswerText} · 30 ${secondsText} · ${count + 1}/${limit} ${todayText}`;
+  
   const embed = new EmbedBuilder()
     .setTitle(`${catEmoji[question.cat] ?? '🎲'} ${await t(lang, 'trivia_category', question.cat)}`)
     .setDescription(`**${question.q}**`)
     .setColor(userColor)
-    .setFooter({ text: `${await t(lang, 'write_answer')} · 30s · ${count + 1}/${limit} ${await t(lang, 'today')}` });
+    .setFooter({ text: footerText });
 
   await ctx.reply({ embeds: [embed] });
 
@@ -82,13 +88,15 @@ async function cmdTrivia(ctx, category) {
       const user = await db.getUser(m.author.id);
       await checkAchievements(m.author.id, eco, user);
       
-      await m.reply(await t(lang, 'trivia_correct', question.a, m.author.id, reward, eco.points, count + 1, limit));
+      const correctMsg = await t(lang, 'trivia_correct', question.a, m.author.id, reward, eco.points, count + 1, limit);
+      await m.reply(correctMsg);
     }
   });
 
-  collector.on('end', (collected, reason) => {
+  collector.on('end', async (collected, reason) => {
     if (!answered) {
-      channel.send(await t(lang, 'trivia_timeout', question.a)).catch(() => {});
+      const timeoutMsg = await t(lang, 'trivia_timeout', question.a);
+      channel.send(timeoutMsg).catch(() => {});
     }
   });
 }
@@ -96,6 +104,7 @@ async function cmdTrivia(ctx, category) {
 // ──────────────────────────────────────────────────────────────
 //  Trivia personalizada
 // ──────────────────────────────────────────────────────────────
+
 async function cmdTriviaCustom(ctx, subcommand, ...args) {
   const lang = await getGuildLang(ctx.guild?.id);
   const isOwner = ctx.userId === process.env.BOT_OWNER_ID;
@@ -112,19 +121,24 @@ async function cmdTriviaCustom(ctx, subcommand, ...args) {
     questions.push({ q: question, a: answer, cat: 'Personalizada' });
     await redisSet('custom_trivia', questions);
     replyEmbed(ctx, 'success', 'trivia_custom_added', 0x57F287, true);
-    
-  } else if (subcommand === 'list') {
+    return;
+  }
+  
+  if (subcommand === 'list') {
     const questions = await redisGet('custom_trivia') || [];
     if (!questions.length) return replyEmbed(ctx, 'info', 'trivia_custom_empty', 0x1900ff, true);
     const userColor = (await db.getUser(ctx.userId))?.profileColor || 0x1900ff;
+    const questionsText = await t(lang, 'questions');
     const embed = new EmbedBuilder()
       .setTitle(await t(lang, 'trivia_custom_list'))
       .setColor(userColor)
       .setDescription(questions.map((q, i) => `**${i+1}.** ${q.q}\n→ \`${q.a}\``).join('\n\n'))
-      .setFooter({ text: `${questions.length} ${await t(lang, 'questions')}` });
+      .setFooter({ text: `${questions.length} ${questionsText}` });
     ctx.reply({ embeds: [embed] });
-    
-  } else if (subcommand === 'play') {
+    return;
+  }
+  
+  if (subcommand === 'play') {
     const today = new Date().toISOString().slice(0,10);
     const countKey = `trivia:custom:count:${ctx.userId}:${today}`;
     const count = parseInt(await redisGet(countKey) || '0');
@@ -140,11 +154,16 @@ async function cmdTriviaCustom(ctx, subcommand, ...args) {
     
     const question = questions[Math.floor(Math.random() * questions.length)];
     const userColor = (await db.getUser(ctx.userId))?.profileColor || 0x1900ff;
+    const secondsText = await t(lang, 'seconds');
+    const todayText = await t(lang, 'today');
+    const writeAnswerText = await t(lang, 'write_answer');
+    const footerText = `${writeAnswerText} · 30 ${secondsText} · ${count+1}/${limit} ${todayText}`;
+    
     const embed = new EmbedBuilder()
       .setTitle(await t(lang, 'trivia_custom_title'))
       .setDescription(`**${question.q}**`)
       .setColor(userColor)
-      .setFooter({ text: `${await t(lang, 'write_answer')} · 30s · ${count+1}/${limit} ${await t(lang, 'today')}` });
+      .setFooter({ text: footerText });
     
     await ctx.reply({ embeds: [embed] });
     
@@ -170,19 +189,21 @@ async function cmdTriviaCustom(ctx, subcommand, ...args) {
         eco.totalEarned = (eco.totalEarned ?? 0) + reward;
         await db.saveEconomy(ctx.userId, eco);
         
-        await m.reply(await t(lang, 'trivia_custom_correct', reward, eco.points));
+        const correctMsg = await t(lang, 'trivia_custom_correct', reward, eco.points);
+        await m.reply(correctMsg);
       }
     });
     
-    collector.on('end', (collected, reason) => {
+    collector.on('end', async (collected, reason) => {
       if (!answered) {
-        ctx.channel.send(await t(lang, 'trivia_timeout', question.a)).catch(() => {});
+        const timeoutMsg = await t(lang, 'trivia_timeout', question.a);
+        ctx.channel.send(timeoutMsg).catch(() => {});
       }
     });
-    
-  } else {
-    replyEmbed(ctx, 'error', 'trivia_custom_usage', 0xED4245, true);
+    return;
   }
+  
+  replyEmbed(ctx, 'error', 'trivia_custom_usage', 0xED4245, true);
 }
 
 module.exports = {
