@@ -86,6 +86,7 @@ async function onMemberJoin(member) {
   if (!entry) return;
   await syncRoles(member.guild, member.id, entry.robloxId);
 }
+
 async function onGuildAdd(guild) {
   try {
     const channel = guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.SendMessages));
