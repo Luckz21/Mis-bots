@@ -109,6 +109,8 @@ const slashCommands = [
   new SlashCommandBuilder().setName('setflexbg').setDescription('Establecer una imagen de fondo para /flex (Premium)')
     .addStringOption(o => o.setName('url').setDescription('URL de la imagen (jpg, png, gif)').setRequired(true)),
   // Economía
+  new SlashCommandBuilder().setName('fianza').setDescription('Pagar la fianza de un usuario encarcelado (Admin/Owner)')
+  .addUserOption(o => o.setName('usuario').setDescription('Usuario a liberar').setRequired(true)),
   new SlashCommandBuilder().setName('puntos').setDescription('Ver tus puntos y rango de economía').addUserOption(o => o.setName('usuario').setDescription('Usuario (opcional)')),
   new SlashCommandBuilder().setName('daily').setDescription('Reclamar tu recompensa diaria de puntos'),
   new SlashCommandBuilder().setName('logros').setDescription('Ver logros desbloqueados').addUserOption(o => o.setName('usuario').setDescription('Usuario (opcional)')),
