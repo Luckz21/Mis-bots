@@ -23,8 +23,9 @@ async function replyEmbed(ctx, titleKey, descKey, color = 0x1900ff, ephemeral = 
 }
 
 // ──────────────────────────────────────────────────────────────
-//  LFG Mejorado (crea canal de voz temporal)
+//  LFG Mejorado
 // ──────────────────────────────────────────────────────────────
+
 async function cmdLFG(ctx, gameName, slots) {
   const lang = await getGuildLang(ctx.guild?.id);
   if (!gameName) return replyEmbed(ctx, 'error', 'lfg_usage', 0xED4245, true);
@@ -75,32 +76,47 @@ async function cmdLFG(ctx, gameName, slots) {
       voiceChannelId: voiceChannel.id
     };
 
-    const makeLFGEmbed = (data) => {
+    // Pre-traducir todos los textos necesarios
+    const hostText = await t(lang, 'host');
+    const playersText = await t(lang, 'players');
+    const voiceChannelText = await t(lang, 'voice_channel');
+    const membersText = await t(lang, 'members');
+    const groupFullText = await t(lang, 'group_full');
+    const groupOpenText = await t(lang, 'group_open');
+    const joinText = await t(lang, 'join');
+    const leaveText = await t(lang, 'leave');
+    const closeText = await t(lang, 'close');
+    const voiceCreatedText = await t(lang, 'voice_channel_created');
+    const joinManageText = await t(lang, 'join_voice_and_manage');
+
+    const makeLFGEmbed = async (data) => {
       const filled = data.members.length;
       const bar = '🟢'.repeat(filled) + '⬛'.repeat(data.slots - filled);
       const userColor = entry.profileColor || 0x1900ff;
+      
       return new EmbedBuilder()
-        .setTitle(`🎮 ${data.gameName}`)
+        .setTitle(`🎮 LFG — ${data.gameName}`)
         .setColor(filled >= data.slots ? 0xED4245 : 0x57F287)
         .setDescription(
-          `${await t(lang, 'host')}: ${data.robloxName} (@${data.hostName})\n` +
-          `${await t(lang, 'players')}: ${bar} ${filled}/${data.slots}\n` +
-          `${await t(lang, 'voice_channel')}: ${voiceChannel.name}\n\n` +
-          `${await t(lang, 'members')}:\n${data.members.map((m, i) => `${i + 1}. ${m.roblox} (@${m.name})`).join('\n')}`
+          `**${hostText}:** ${data.robloxName} (@${data.hostName})\n` +
+          `**${playersText}:** ${bar} ${filled}/${data.slots}\n` +
+          `**${voiceChannelText}:** ${voiceChannel.name}\n\n` +
+          `**${membersText}:**\n${data.members.map((m, i) => `${i + 1}. ${m.roblox} (@${m.name})`).join('\n')}`
         )
-        .setFooter({ text: filled >= data.slots ? await t(lang, 'group_full') : await t(lang, 'group_open') })
+        .setFooter({ text: filled >= data.slots ? `🔴 ${groupFullText}` : `🟢 ${groupOpenText}` })
         .setTimestamp();
     };
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('lfg_join').setLabel('✅ ' + (await t(lang, 'join'))).setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('lfg_leave').setLabel('❌ ' + (await t(lang, 'leave'))).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('lfg_close').setLabel('🔒 ' + (await t(lang, 'close'))).setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('lfg_join').setLabel('✅ ' + joinText).setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId('lfg_leave').setLabel('❌ ' + leaveText).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('lfg_close').setLabel('🔒 ' + closeText).setStyle(ButtonStyle.Danger),
     );
 
+    const initialEmbed = await makeLFGEmbed(lfgData);
     const msg = await ctx.replyAndFetch({ 
-      content: `🔊 ${await t(lang, 'voice_channel_created')}: ${voiceChannel}\n${await t(lang, 'join_voice_and_manage')}`,
-      embeds: [makeLFGEmbed(lfgData)], 
+      content: `🔊 **${voiceCreatedText}:** ${voiceChannel}\n${joinManageText}`,
+      embeds: [initialEmbed], 
       components: [row] 
     });
     if (!msg) {
@@ -134,10 +150,8 @@ async function cmdLFG(ctx, gameName, slots) {
         
         await voiceChannel.permissionOverwrites.edit(i.user.id, { Connect: true }).catch(() => {});
         
-        await i.update({ 
-          embeds: [makeLFGEmbed(data)], 
-          components: data.members.length >= data.slots ? [] : [row] 
-        });
+        const updatedEmbed = await makeLFGEmbed(data);
+        await i.update({ embeds: [updatedEmbed], components: data.members.length >= data.slots ? [] : [row] });
         
       } else if (i.customId === 'lfg_leave') {
         if (i.user.id === data.hostId) {
@@ -154,7 +168,8 @@ async function cmdLFG(ctx, gameName, slots) {
         
         await voiceChannel.permissionOverwrites.delete(i.user.id).catch(() => {});
         
-        await i.update({ embeds: [makeLFGEmbed(data)], components: [row] });
+        const updatedEmbed = await makeLFGEmbed(data);
+        await i.update({ embeds: [updatedEmbed], components: [row] });
         
       } else if (i.customId === 'lfg_close') {
         if (i.user.id !== data.hostId) {
@@ -165,10 +180,8 @@ async function cmdLFG(ctx, gameName, slots) {
         await db.deleteLFG(msg.id);
         await voiceChannel.delete().catch(() => {});
         
-        await i.update({ 
-          embeds: [makeLFGEmbed(data).setColor(0xED4245).setFooter({ text: await t(lang, 'group_closed') })], 
-          components: [] 
-        });
+        const closedEmbed = (await makeLFGEmbed(data)).setColor(0xED4245).setFooter({ text: await t(lang, 'group_closed') });
+        await i.update({ embeds: [closedEmbed], components: [] });
       }
     });
 
@@ -187,6 +200,7 @@ async function cmdLFG(ctx, gameName, slots) {
 // ──────────────────────────────────────────────────────────────
 //  Sugerencias
 // ──────────────────────────────────────────────────────────────
+
 async function cmdSugerencia(ctx, text) {
   const lang = await getGuildLang(ctx.guild?.id);
   const clean = sanitizeText(text, 500);
@@ -201,13 +215,18 @@ async function cmdSugerencia(ctx, text) {
   const entry = await db.getUser(ctx.userId);
   const userColor = entry?.profileColor || 0x1900ff;
   
+  const authorText = await t(lang, 'author');
+  const robloxText = await t(lang, 'roblox_account');
+  const notLinkedText = await t(lang, 'not_linked');
+  const newSuggestionText = await t(lang, 'new_suggestion');
+  
   const embed = new EmbedBuilder()
-    .setTitle(await t(lang, 'new_suggestion'))
+    .setTitle(newSuggestionText)
     .setDescription(clean)
     .setColor(userColor)
     .addFields(
-      { name: await t(lang, 'author'), value: `<@${ctx.userId}> (${ctx.username})`, inline: true },
-      { name: '🎮 Roblox', value: entry ? `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)` : '_' + (await t(lang, 'not_linked')) + '_', inline: true },
+      { name: authorText, value: `<@${ctx.userId}> (${ctx.username})`, inline: true },
+      { name: robloxText, value: entry ? `[${entry.robloxUsername}](https://www.roblox.com/users/${entry.robloxId}/profile)` : '_' + notLinkedText + '_', inline: true },
     )
     .setFooter({ text: `ID: ${ctx.userId}` })
     .setTimestamp();
