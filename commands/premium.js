@@ -215,14 +215,19 @@ async function cmdMiStats(ctx) {
   const games = Object.entries(stats.games).sort((a, b) => b[1].count - a[1].count).slice(0, 10);
   if (!games.length) return replyEmbed(ctx, 'mistats_title', 'mistats_empty', 0x1900ff, false, [entry.robloxUsername]);
   const userColor = entry.profileColor || 0x1900ff;
+  
+  const sessionsText = await t(lang, 'sessions');
+  const description = games.map(([name, data], i) => 
+    `**${i+1}.** ${name} — **${data.count}** ${sessionsText}`
+  ).join('\n');
+  
   const embed = new EmbedBuilder()
     .setTitle(await t(lang, 'mistats_title', entry.robloxUsername))
     .setColor(userColor)
-    .setDescription(games.map(([name, data], i) => `**${i+1}.** ${name} — **${data.count}** ${await t(lang, 'sessions')}`).join('\n'))
+    .setDescription(description)
     .setFooter({ text: await t(lang, 'based_on_estado') });
   ctx.reply({ embeds: [embed] });
 }
-
 // ──────────────────────────────────────────────────────────────
 //  Añadir cuenta alt
 // ──────────────────────────────────────────────────────────────
