@@ -227,6 +227,9 @@ const translations = {
     buy_paypal_description: 'Haz clic en el botón para pagar **${0}** con PayPal.\nEl Premium se activará automáticamente.',
     buy_paypal_footer: 'Serás redirigido a PayPal',
     pay_with_paypal: 'Pagar con PayPal',
+    compare_avatar_title: '🆚 {0} vs {1}',
+    compare_avatar_desc: '¿Quién tiene el mejor avatar? Reacciona con 1️⃣ o 2️⃣ para votar.',
+    compare_vote_footer: 'Votación abierta por 5 minutos · Solo un voto por usuario',
 
     // Moderación
     whois_title: '🔍 Whois: {0}',
@@ -606,6 +609,9 @@ const translations = {
     limiteds_found: 'Limiteds found',
     rap_source: 'Source: Rolimons (approximate)',
     roles_synced: '✅ Roles synced.',
+    compare_avatar_title: '🆚 {0} vs {1}',
+    compare_avatar_desc: '¿Quién tiene el mejor avatar? Reacciona con 1️⃣ o 2️⃣ para votar.',
+    compare_vote_footer: 'Votación abierta por 5 minutos · Solo un voto por usuario',
 
     // Premium
     premium_active_title: '⭐ Premium active',
@@ -1026,6 +1032,9 @@ const translations = {
     limiteds_found: 'Limiteds encontrados',
     rap_source: 'Fonte: Rolimons (aproximado)',
     roles_synced: '✅ Cargos sincronizados.',
+    compare_avatar_title: '🆚 {0} vs {1}',
+    compare_avatar_desc: '¿Quién tiene el mejor avatar? Reacciona con 1️⃣ o 2️⃣ para votar.',
+    compare_vote_footer: 'Votación abierta por 5 minutos · Solo un voto por usuario',
 
     // Premium
     premium_active_title: '⭐ Premium ativo',
