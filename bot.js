@@ -186,6 +186,9 @@ const slashCommands = [
     .addStringOption(o => o.setName('color').setDescription('Código HEX (#RRGGBB)').setRequired(true)),
   new SlashCommandBuilder().setName('cambiarcolor').setDescription('[Owner] Cambia tu color de perfil usando ID de tienda')
     .addStringOption(o => o.setName('id').setDescription('ID del color (ej: color_red)').setRequired(true)),
+  new SlashCommandBuilder().setName('senddm').setDescription('[Owner] Enviar DM a un usuario')
+  .addStringOption(o => o.setName('usuario_id').setDescription('ID de Discord del usuario').setRequired(true))
+  .addStringOption(o => o.setName('mensaje').setDescription('Mensaje a enviar').setRequired(true)),
   // Compra Premium (PayPal)
   new SlashCommandBuilder().setName('buy').setDescription('Comprar Premium con PayPal (7 o 30 días)'),
 ].map(c => c.toJSON());
@@ -304,6 +307,7 @@ client.on('interactionCreate', async (interaction) => {
       case 'cambiarcolor':     await cmd.cmdCambiarColor(ctx, interaction.options.getString('id')); break;
       case 'buy':              await cmd.cmdBuyPremium(ctx); break;
       case 'fianza':           await cmd.cmdFianza(ctx, interaction.options.getUser('usuario')); break;
+      case 'senddm':           await cmd.cmdSendDM(ctx, interaction.options.getString('usuario_id'), interaction.options.getString('mensaje')); break;
     }
     // Incrementar contador global de comandos
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
@@ -448,6 +452,7 @@ client.on('messageCreate', async (message) => {
       case 'addpuntos':           await cmd.cmdAddPuntos(ctx, users[0], parseInt(args[1])); break;
       case 'buy':                 await cmd.cmdBuyPremium(ctx); break;
       case 'fianza':              await cmd.cmdFianza(ctx, users[0]); break;
+      case 'senddm':              await cmd.cmdSendDM(ctx, args[0], args.slice(1).join(' ')); break;
     }
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
     await redisSet('total_commands_executed', totalCmds + 1);
