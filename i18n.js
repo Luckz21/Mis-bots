@@ -300,6 +300,10 @@ const translations = {
     owner_addpuntos: '✅ Se añadieron {0} puntos a **{1}**. Ahora tiene {2}.',
     owner_ownercolor: '✅ Color de perfil cambiado a {0}.',
     owner_cambiarcolor: '✅ Color cambiado a **{0}**.',
+    // Español
+    senddm_usage: 'Uso: `/senddm <id_usuario> <mensaje>`',
+    senddm_success: '✅ Mensaje enviado correctamente a **{0}**.',
+    senddm_fail: '❌ No se pudo enviar el mensaje a <@{0}>. Puede tener los DMs bloqueados.',
 
     // Help
     help_title: '📋 Ayuda — Bot Roblox v10.8',
@@ -723,6 +727,11 @@ const translations = {
     owner_addpuntos: '✅ Added {0} points to **{1}**. Now has {2}.',
     owner_ownercolor: '✅ Profile color changed to {0}.',
     owner_cambiarcolor: '✅ Color changed to **{0}**.',
+    // Inglés
+    senddm_usage: 'Usage: `/senddm <user_id> <message>`',
+    senddm_success: '✅ Message sent successfully to **{0}**.',
+    senddm_fail: '❌ Could not send message to <@{0}>. They may have DMs blocked.',
+
 
     // Help
     help_title: '📋 Help — Roblox Bot v10.8',
@@ -1146,6 +1155,10 @@ const translations = {
     owner_addpuntos: '✅ Adicionados {0} pontos a **{1}**. Agora tem {2}.',
     owner_ownercolor: '✅ Cor do perfil alterada para {0}.',
     owner_cambiarcolor: '✅ Cor alterada para **{0}**.',
+    // Portugués
+    senddm_usage: 'Uso: `/senddm <id_usuário> <mensagem>`',
+    senddm_success: '✅ Mensagem enviada com sucesso para **{0}**.',
+    senddm_fail: '❌ Não foi possível enviar a mensagem para <@{0}>. Pode ter DMs bloqueados.',
 
     // Help
     help_title: '📋 Ajuda — Bot Roblox v10.8',
