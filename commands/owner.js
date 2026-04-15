@@ -90,7 +90,30 @@ async function cmdCambiarColor(ctx, colorId) {
   replyEmbed(ctx, 'success', 'owner_cambiarcolor', 0x57F287, true, [item.name]);
 }
 
+async function cmdSendDM(ctx, targetId, message) {
+  if (ctx.userId !== process.env.BOT_OWNER_ID) 
+    return replyEmbed(ctx, 'error', 'owner_only', 0xED4245, true);
+  if (!targetId || !message) 
+    return replyEmbed(ctx, 'error', 'senddm_usage', 0xED4245, true);
+  
+  try {
+    const user = await ctx.guild.client.users.fetch(targetId);
+    const embed = new EmbedBuilder()
+      .setTitle('📨 Mensaje del equipo de LockBox')
+      .setDescription(message)
+      .setColor(0x1900ff)
+      .setFooter({ text: `Enviado por ${ctx.username}` })
+      .setTimestamp();
+    
+    await user.send({ embeds: [embed] });
+    replyEmbed(ctx, 'success', 'senddm_success', 0x57F287, true, [user.username]);
+  } catch (e) {
+    replyEmbed(ctx, 'error', 'senddm_fail', 0xED4245, true, [targetId]);
+  }
+}
+
 module.exports = {
   cmdActivarPremium, cmdDesactivarPremium, cmdEncarcelar,
-  cmdSetPuntos, cmdAddPuntos, cmdOwnerColor, cmdCambiarColor
+  cmdSetPuntos, cmdAddPuntos, cmdOwnerColor, cmdCambiarColor,
+  cmdSendDM  // <-- nueva
 };
