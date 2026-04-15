@@ -173,35 +173,62 @@ async function cmdComparar(ctx, targetUser1, targetUser2) {
   if (!e1) return replyEmbed(ctx, 'error', 'no_account', 0xED4245, true, [targetUser1.username]);
   if (!e2) return replyEmbed(ctx, 'error', 'no_account', 0xED4245, true, [targetUser2.username]);
   
-  const [p1, fr1, fo1, g1, p2, fr2, fo2, g2, av1] = await Promise.all([
-    roblox.getProfile(e1.robloxId), roblox.getFriendCount(e1.robloxId), roblox.getFollowerCount(e1.robloxId), roblox.getGroups(e1.robloxId),
-    roblox.getProfile(e2.robloxId), roblox.getFriendCount(e2.robloxId), roblox.getFollowerCount(e2.robloxId), roblox.getGroups(e2.robloxId),
-    roblox.getAvatar(e1.robloxId),
+  // Obtener avatares completos
+  const [av1, av2] = await Promise.all([
+    roblox.getAvatarFull(e1.robloxId),
+    roblox.getAvatarFull(e2.robloxId)
   ]);
   
-  const gIds1  = new Set(g1.map(g => g.group.id));
-  const common = g2.filter(g => gIds1.has(g.group.id));
-  const age1   = Math.floor((Date.now() - new Date(p1.created)) / 86400000);
-  const age2   = Math.floor((Date.now() - new Date(p2.created)) / 86400000);
-  const w = (a, b) => a > b ? '🏆' : a < b ? '💀' : '🤝';
+  if (!av1 || !av2) return replyEmbed(ctx, 'error', 'error_generic', 0xED4245, true);
+  
   const userColor = e1.profileColor || 0x1900ff;
   
   const embed = new EmbedBuilder()
-    .setTitle(await t(lang, 'compare_title', p1.name, p2.name))
-    .setColor(userColor).setThumbnail(av1)
-    .setDescription(await t(lang, 'common_groups', common.length) + (common.length ? ` (${common.slice(0,3).map(g=>g.group.name).join(', ')})` : ''))
-    .addFields(
-      { name: `👤 ${p1.name}`, value: '\u200B', inline: true }, { name: '⚔️', value: '\u200B', inline: true }, { name: `👤 ${p2.name}`, value: '\u200B', inline: true },
-      { name: `${w(fr1,fr2)} ${fr1}`, value: '\u200B', inline: true }, { name: await t(lang, 'friends'), value: '\u200B', inline: true }, { name: `${w(fr2,fr1)} ${fr2}`, value: '\u200B', inline: true },
-      { name: `${w(fo1,fo2)} ${fo1}`, value: '\u200B', inline: true }, { name: await t(lang, 'followers'), value: '\u200B', inline: true }, { name: `${w(fo2,fo1)} ${fo2}`, value: '\u200B', inline: true },
-      { name: `${w(g1.length,g2.length)} ${g1.length}`, value: '\u200B', inline: true }, { name: await t(lang, 'groups'), value: '\u200B', inline: true }, { name: `${w(g2.length,g1.length)} ${g2.length}`, value: '\u200B', inline: true },
-      { name: `${w(age1,age2)} ${age1}d`, value: '\u200B', inline: true }, { name: await t(lang, 'days'), value: '\u200B', inline: true }, { name: `${w(age2,age1)} ${age2}d`, value: '\u200B', inline: true },
-    )
-    .setFooter({ text: await t(lang, 'compare_footer') });
+    .setTitle(await t(lang, 'compare_avatar_title', e1.robloxUsername, e2.robloxUsername))
+    .setColor(userColor)
+    .setDescription(await t(lang, 'compare_avatar_desc'))
+    .setImage(av1)   // Avatar del primer usuario como imagen principal
+    .setThumbnail(av2) // Avatar del segundo como thumbnail (esquina superior derecha)
+    .setFooter({ text: await t(lang, 'compare_vote_footer') })
+    .setTimestamp();
   
-  ctx.reply({ embeds: [embed] });
+  const msg = await ctx.replyAndFetch({ embeds: [embed] });
+  if (!msg) return;
+  
+  // Añadir reacciones para votar
+  await msg.react('1️⃣');
+  await msg.react('2️⃣');
+  
+  // Cooldown de 5 minutos por usuario (usando Redis)
+  const voteKey = `vote:compare:${msg.id}`;
+  
+  // Recolector de reacciones
+  const filter = (reaction, user) => ['1️⃣','2️⃣'].includes(reaction.emoji.name) && !user.bot;
+  const collector = msg.createReactionCollector({ filter, time: 300000 }); // 5 minutos
+  
+  collector.on('collect', async (reaction, user) => {
+    // Verificar cooldown
+    const userVoteKey = `${voteKey}:${user.id}`;
+    const lastVote = await redisGet(userVoteKey);
+    if (lastVote) {
+      // Usuario ya votó, quitar su reacción
+      await reaction.users.remove(user.id);
+      return;
+    }
+    
+    // Registrar voto
+    await redisSet(userVoteKey, Date.now(), 300); // 5 minutos
+    
+    // Opcional: enviar mensaje efímero confirmando
+    const voteMsg = await msg.channel.send({ content: `✅ ${user.username} votó por el avatar ${reaction.emoji.name}` });
+    setTimeout(() => voteMsg.delete().catch(() => {}), 3000);
+  });
+  
+  collector.on('end', () => {
+    msg.reactions.removeAll().catch(() => {});
+    // Opcional: editar embed con resultado final
+  });
 }
-
 // ──────────────────────────────────────────────────────────────
 //  Estadísticas de juego (MiStats)
 // ──────────────────────────────────────────────────────────────
