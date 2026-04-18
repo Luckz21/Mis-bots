@@ -193,7 +193,7 @@ const slashCommands = [
   new SlashCommandBuilder().setName('buy').setDescription('Comprar Premium con PayPal (7 o 30 días)'),
 ].map(c => c.toJSON());
 new SlashCommandBuilder().setName('playtime').setDescription('Muestra el tiempo jugado en los últimos 7 días')
-  .addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)')),
+  .addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)'))
 
 async function registerSlashCommands() {
   const rest = new REST({ version: '10' }).setToken(TOKEN);
