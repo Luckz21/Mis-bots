@@ -409,6 +409,82 @@ async function cmdRAP(ctx, targetUser) {
   ctx.reply({ embeds: [embed] });
 }
 
+async function cmdPlaytime(ctx, targetUser) {
+  const target = targetUser ?? { id: ctx.userId, username: ctx.username };
+  const lang   = await getGuildLang(ctx.guild?.id);
+  const entry  = await db.getUser(target.id);
+  if (!entry) return replyEmbed(ctx, 'error', 'no_account', 0xED4245, true, [target.username ?? ctx.username]);
+  
+  // Verificar si el usuario tiene permiso para ver estos datos
+  if (target.id !== ctx.userId && !entry.privacyProfile) 
+    return replyEmbed(ctx, 'error', 'profile_private', 0xED4245, true);
+  
+  // Obtener el historial de juegos del usuario
+  const history = await db.getHistory(target.id) ?? [];
+  if (!history.length) 
+    return replyEmbed(ctx, 'info', 'playtime_no_data', 0x1900ff, false, [entry.robloxUsername]);
+  
+  // Filtrar solo los juegos de los últimos 7 días
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentHistory = history.filter(h => new Date(h.playedAt).getTime() > sevenDaysAgo);
+  
+  if (!recentHistory.length)
+    return replyEmbed(ctx, 'info', 'playtime_no_recent', 0x1900ff, false, [entry.robloxUsername]);
+  
+  // Calcular tiempo total por juego (estimación basada en sesiones)
+  // Nota: No tenemos la duración exacta, solo el número de veces que se usó /estado
+  // Asumimos 15 minutos por cada vez que se detectó al usuario jugando
+  const playtimeByGame = {};
+  for (const session of recentHistory) {
+    const gameName = session.gameName;
+    if (!playtimeByGame[gameName]) {
+      playtimeByGame[gameName] = {
+        count: 0,
+        estimatedMinutes: 0,
+        placeId: session.placeId
+      };
+    }
+    playtimeByGame[gameName].count++;
+    playtimeByGame[gameName].estimatedMinutes += 15; // 15 minutos por detección
+  }
+  
+  // Convertir a array y ordenar por tiempo estimado
+  const gameList = Object.entries(playtimeByGame)
+    .map(([name, data]) => ({
+      name,
+      count: data.count,
+      minutes: data.estimatedMinutes,
+      placeId: data.placeId
+    }))
+    .sort((a, b) => b.minutes - a.minutes)
+    .slice(0, 10);
+  
+  const userColor = entry.profileColor || 0x1900ff;
+  
+  // Formatear el tiempo para mostrarlo legible
+  const formatTime = (minutes) => {
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  };
+  
+  const description = gameList.map((game, index) => {
+    const timeStr = formatTime(game.minutes);
+    const gameUrl = `https://www.roblox.com/games/${game.placeId}`;
+    return `**${index + 1}.** [${game.name}](${gameUrl})\n⏱️ ${timeStr} (${game.count} sesiones)`;
+  }).join('\n\n') || `_${await t(lang, 'playtime_no_data')}_`;
+  
+  const embed = new EmbedBuilder()
+    .setTitle(await t(lang, 'playtime_title', entry.robloxUsername))
+    .setDescription(description)
+    .setColor(userColor)
+    .setFooter({ text: await t(lang, 'playtime_footer') })
+    .setTimestamp();
+  
+  ctx.reply({ embeds: [embed] });
+}
+
 module.exports = {
   cmdPerfil,
   cmdAvatar,
@@ -420,5 +496,6 @@ module.exports = {
   cmdBuscar,
   cmdWhoisRoblox,
   cmdOutfit,
-  cmdRAP
+  cmdRAP,
+  cmdPlaytime
 };
