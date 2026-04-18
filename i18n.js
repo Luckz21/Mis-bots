@@ -230,6 +230,10 @@ const translations = {
     compare_avatar_title: '🆚 {0} vs {1}',
     compare_avatar_desc: '¿Quién tiene el mejor avatar? Reacciona con 1️⃣ o 2️⃣ para votar.',
     compare_vote_footer: 'Votación abierta por 5 minutos · Solo un voto por usuario',
+    playtime_title: '⏱️ Tiempo de juego de {0} (últimos 7 días)',
+    playtime_no_data: '📊 Aún no hay datos de juego para **{0}**. Usa `/estado` mientras juegas para registrar tu tiempo.',
+    playtime_no_recent: '📊 **{0}** no ha jugado en los últimos 7 días.',
+    playtime_footer: 'Estimación basada en 15 minutos por sesión detectada · Usa /estado frecuentemente para mayor precisión',
 
     // Moderación
     whois_title: '🔍 Whois: {0}',
@@ -657,6 +661,10 @@ const translations = {
     buy_paypal_description: 'Click the button to pay **${0}** with PayPal.\nPremium will be activated automatically.',
     buy_paypal_footer: 'You will be redirected to PayPal',
     pay_with_paypal: 'Pay with PayPal',
+    playtime_title: '⏱️ Playtime for {0} (last 7 days)',
+    playtime_no_data: '📊 No playtime data yet for **{0}**. Use `/estado` while playing to track your time.',
+    playtime_no_recent: '📊 **{0}** has not played in the last 7 days.',
+    playtime_footer: 'Estimate based on 15 minutes per detected session · Use /estado frequently for better accuracy',
 
     // Moderación
     whois_title: '🔍 Whois: {0}',
@@ -1085,6 +1093,10 @@ const translations = {
     buy_paypal_description: 'Clique no botão para pagar **${0}** com PayPal.\nO Premium será ativado automaticamente.',
     buy_paypal_footer: 'Você será redirecionado ao PayPal',
     pay_with_paypal: 'Pagar com PayPal',
+    playtime_title: '⏱️ Tempo de jogo de {0} (últimos 7 dias)',
+    playtime_no_data: '📊 Ainda não há dados de jogo para **{0}**. Use `/estado` enquanto joga para registrar seu tempo.',
+    playtime_no_recent: '📊 **{0}** não jogou nos últimos 7 dias.',
+    playtime_footer: 'Estimativa baseada em 15 minutos por sessão detectada · Use /estado frequentemente para maior precisão',
 
     // Moderación
     whois_title: '🔍 Whois: {0}',
