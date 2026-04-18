@@ -192,6 +192,8 @@ const slashCommands = [
   // Compra Premium (PayPal)
   new SlashCommandBuilder().setName('buy').setDescription('Comprar Premium con PayPal (7 o 30 días)'),
 ].map(c => c.toJSON());
+new SlashCommandBuilder().setName('playtime').setDescription('Muestra el tiempo jugado en los últimos 7 días')
+  .addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)')),
 
 async function registerSlashCommands() {
   const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -308,6 +310,7 @@ client.on('interactionCreate', async (interaction) => {
       case 'buy':              await cmd.cmdBuyPremium(ctx); break;
       case 'fianza':           await cmd.cmdFianza(ctx, interaction.options.getUser('usuario')); break;
       case 'senddm':           await cmd.cmdSendDM(ctx, interaction.options.getString('usuario_id'), interaction.options.getString('mensaje')); break;
+      case 'playtime':         await cmd.cmdPlaytime(ctx, interaction.options.getUser('usuario')); break;
     }
     // Incrementar contador global de comandos
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
@@ -453,6 +456,7 @@ client.on('messageCreate', async (message) => {
       case 'buy':                 await cmd.cmdBuyPremium(ctx); break;
       case 'fianza':              await cmd.cmdFianza(ctx, users[0]); break;
       case 'senddm':              await cmd.cmdSendDM(ctx, args[0], args.slice(1).join(' ')); break;
+      case 'playtime':            await cmd.cmdPlaytime(ctx, users[0]); break;
     }
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
     await redisSet('total_commands_executed', totalCmds + 1);
