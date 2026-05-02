@@ -154,15 +154,10 @@ async function paginate(ctx, pages) {
 }
 
 // ── Alertas (filtro por período) ─────────────────────────────
-function getCurrentResetPeriodStart() {
-  const now = new Date();
-  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-  return todayUTC;
-}
 
 function filterAlertsByResetPeriod(alerts) {
   if (!alerts) return [];
-  const periodStart = getCurrentResetPeriodStart().getTime();
+  const periodStart = getWeeklyResetStart().getTime();
   return alerts.filter(a => {
     const createdAt = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     return createdAt >= periodStart;
@@ -203,6 +198,30 @@ async function getAnimeGif(category) {
   }
 }
 
+function getWeeklyResetStart() {
+  // Hora dominicana = UTC-4 (sin horario de verano)
+  const now = new Date();
+  const offsetDominican = -4 * 60; // minutos
+  const localTime = new Date(now.getTime() + offsetDominican * 60000);
+
+  // Día de la semana (0 = domingo, 1 = lunes, ...) usando UTC porque ya está ajustado
+  const dayOfWeek = localTime.getUTCDay();
+
+  // Crear la fecha del domingo a las 20:00 hora dominicana
+  const startLocal = new Date(localTime);
+  startLocal.setUTCDate(localTime.getUTCDate() - dayOfWeek);
+  startLocal.setUTCHours(20, 0, 0, 0);
+
+  // Convertir a UTC
+  const startUTC = new Date(startLocal.getTime() - offsetDominican * 60000);
+
+  // Si ya pasó el domingo 8pm de esta semana, tomar el próximo domingo
+  if (now >= startUTC) {
+    startUTC.setDate(startUTC.getDate() + 7);
+  }
+
+  return startUTC;
+}
 // ── Exportaciones ─────────────────────────────────────────────
 module.exports = {
   isPremium,
