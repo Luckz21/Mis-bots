@@ -211,7 +211,7 @@ async function cmdEstado(ctx, targetUser) {
     let userAlerts  = await db.getAlerts(ctx.userId) ?? [];
     const userPremium = await isPremium(ctx.userId);
     const validAlerts = userPremium ? userAlerts : filterAlertsByResetPeriod(userAlerts);
-    if (!userPremium && validAlerts.length >= 2)
+    if (!userPremium && validAlerts.length >= 100)
       return i.reply({ content: await t(lang, 'alert_limit_free'), ephemeral: true });
     if (!validAlerts.find(a => String(a.watchedRobloxId) === String(wId))) {
       const newAlert = { watchedRobloxId: wId, watchedUsername: wName, channelId: i.channelId, guildId: i.guildId, createdAt: new Date().toISOString() };
