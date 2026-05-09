@@ -194,6 +194,8 @@ const slashCommands = [
 ].map(c => c.toJSON());
 new SlashCommandBuilder().setName('playtime').setDescription('Muestra el tiempo jugado en los últimos 7 días')
   .addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)'))
+new SlashCommandBuilder().setName('estadoalt').setDescription('Ver la presencia de una de tus cuentas alt (Premium)')
+  .addStringOption(o => o.setName('usuario').setDescription('Nombre de usuario en Roblox (opcional)')),
 
 async function registerSlashCommands() {
   const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -311,6 +313,7 @@ client.on('interactionCreate', async (interaction) => {
       case 'fianza':           await cmd.cmdFianza(ctx, interaction.options.getUser('usuario')); break;
       case 'senddm':           await cmd.cmdSendDM(ctx, interaction.options.getString('usuario_id'), interaction.options.getString('mensaje')); break;
       case 'playtime':         await cmd.cmdPlaytime(ctx, interaction.options.getUser('usuario')); break;
+     case 'estadoalt':         await cmd.cmdEstadoAlt(ctx, interaction.options.getString('usuario')); break;
     }
     // Incrementar contador global de comandos
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
