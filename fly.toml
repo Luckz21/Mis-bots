@@ -1,0 +1,19 @@
+app = "mis-bots"
+primary_region = "iad"  # Región más barata (Virginia)
+
+[build]
+  builder = "heroku/buildpacks:20"
+
+[env]
+  PORT = "8080"   # Puerto que ya usa tu bot para el health check
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [[services.http_checks]]
+    interval = "10s"
+    grace_period = "5s"
+    method = "get"
+    path = "/health"
+    timeout = "2000"
