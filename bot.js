@@ -313,7 +313,7 @@ client.on('interactionCreate', async (interaction) => {
       case 'fianza':           await cmd.cmdFianza(ctx, interaction.options.getUser('usuario')); break;
       case 'senddm':           await cmd.cmdSendDM(ctx, interaction.options.getString('usuario_id'), interaction.options.getString('mensaje')); break;
       case 'playtime':         await cmd.cmdPlaytime(ctx, interaction.options.getUser('usuario')); break;
-     case 'estadoalt':         await cmd.cmdEstadoAlt(ctx, interaction.options.getString('usuario')); break;
+      case 'estadoalt':        await cmd.cmdEstadoAlt(ctx, interaction.options.getString('usuario')); break;
     }
     // Incrementar contador global de comandos
     const totalCmds = parseInt(await redisGet('total_commands_executed') || '0');
