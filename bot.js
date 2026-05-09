@@ -195,7 +195,7 @@ const slashCommands = [
 new SlashCommandBuilder().setName('playtime').setDescription('Muestra el tiempo jugado en los últimos 7 días')
   .addUserOption(o => o.setName('usuario').setDescription('Usuario de Discord (opcional)'))
 new SlashCommandBuilder().setName('estadoalt').setDescription('Ver la presencia de una de tus cuentas alt (Premium)')
-  .addStringOption(o => o.setName('usuario').setDescription('Nombre de usuario en Roblox (opcional)')),
+  .addStringOption(o => o.setName('usuario').setDescription('Nombre de usuario en Roblox (opcional)'))
 
 async function registerSlashCommands() {
   const rest = new REST({ version: '10' }).setToken(TOKEN);
