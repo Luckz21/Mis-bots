@@ -603,7 +603,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 // ── Arranque ──────────────────────────────────────────────────
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   console.log(`✅ Bot conectado como ${client.user.tag}`);
   await registerSlashCommands();
   await cmd.startPresenceMonitor(client);
