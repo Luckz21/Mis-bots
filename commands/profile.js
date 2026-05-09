@@ -487,6 +487,11 @@ async function cmdPlaytime(ctx, targetUser) {
 
 async function cmdEstadoAlt(ctx, altUsername) {
   const lang = await getGuildLang(ctx.guild?.id);
+  
+  // Verificar que el usuario tenga cuenta vinculada
+  const entry = await db.getUser(ctx.userId);
+  if (!entry) return replyEmbed(ctx, 'error', 'no_linked_account', 0xED4245, true);
+  
   if (!await isPremium(ctx.userId)) return premiumEmbed(ctx);
 
   const alts = await db.getAlts(ctx.userId) ?? [];
@@ -496,7 +501,8 @@ async function cmdEstadoAlt(ctx, altUsername) {
   if (altUsername) {
     // Buscar por nombre de usuario
     const cleanName = sanitizeUsername(altUsername);
-    selectedAlt = alts.find(a => a.name.toLowerCase() === cleanName?.toLowerCase());
+    if (!cleanName) return replyEmbed(ctx, 'error', 'invalid_username', 0xED4245, true);
+    selectedAlt = alts.find(a => a.name.toLowerCase() === cleanName.toLowerCase());
     if (!selectedAlt) return replyEmbed(ctx, 'error', 'alt_not_found', 0xED4245, true, [altUsername]);
   } else {
     // Si no se especifica, mostrar menú de selección
@@ -529,7 +535,7 @@ async function cmdEstadoAlt(ctx, altUsername) {
         selectedAlt = alts[index];
         await interaction.update({ embeds: [], components: [], content: `🔍 Buscando presencia de **${selectedAlt.name}**...` });
       } catch {
-        return msg.edit({ components: [], embeds: [new EmbedBuilder().setTitle('⏰ Tiempo agotado').setColor(0xED4245)] });
+        return msg.edit({ components: [], embeds: [new EmbedBuilder().setTitle('⏰ Tiempo agotado').setColor(0xED4245)] }).catch(() => {});
       }
     }
   }
@@ -546,7 +552,7 @@ async function cmdEstadoAlt(ctx, altUsername) {
     gameName = await roblox.getGameName(presence.universeId);
   }
 
-  const userColor = entry?.profileColor || 0x1900ff;
+  const userColor = entry.profileColor || 0x1900ff;
   const embed = new EmbedBuilder()
     .setTitle(`${label} — ${selectedAlt.name}`)
     .setDescription(`**[${selectedAlt.displayName || selectedAlt.name}](https://www.roblox.com/users/${selectedAlt.id}/profile)**`)
@@ -555,7 +561,13 @@ async function cmdEstadoAlt(ctx, altUsername) {
   if (presence.lastOnline) embed.addFields({ name: '🕐 ' + await t(lang, 'last_online'), value: new Date(presence.lastOnline).toLocaleString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) });
   embed.setFooter({ text: await t(lang, 'requested_by', ctx.username) }).setTimestamp();
 
-  ctx.reply({ embeds: [embed] });
+  if (ctx.isSlash) {
+    // Se está ejecutando como slash (necesita editar la respuesta)
+    await ctx.reply({ embeds: [embed] });
+  } else {
+    // Si se ejecutó por mensaje de texto, enviar un mensaje nuevo
+    await ctx.reply({ embeds: [embed] });
+  }
 }
 
 module.exports = {
