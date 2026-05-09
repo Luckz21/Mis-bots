@@ -485,6 +485,79 @@ async function cmdPlaytime(ctx, targetUser) {
   ctx.reply({ embeds: [embed] });
 }
 
+async function cmdEstadoAlt(ctx, altUsername) {
+  const lang = await getGuildLang(ctx.guild?.id);
+  if (!await isPremium(ctx.userId)) return premiumEmbed(ctx);
+
+  const alts = await db.getAlts(ctx.userId) ?? [];
+  if (!alts.length) return replyEmbed(ctx, 'error', 'alts_empty', 0xED4245, true);
+
+  let selectedAlt;
+  if (altUsername) {
+    // Buscar por nombre de usuario
+    const cleanName = sanitizeUsername(altUsername);
+    selectedAlt = alts.find(a => a.name.toLowerCase() === cleanName?.toLowerCase());
+    if (!selectedAlt) return replyEmbed(ctx, 'error', 'alt_not_found', 0xED4245, true, [altUsername]);
+  } else {
+    // Si no se especifica, mostrar menú de selección
+    if (alts.length === 1) {
+      selectedAlt = alts[0];
+    } else {
+      const row = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('estado_alt_select')
+          .setPlaceholder(await t(lang, 'select_alt'))
+          .addOptions(alts.map((a, i) => ({
+            label: a.displayName || a.name,
+            description: `@${a.name}`,
+            value: String(i)
+          })))
+      );
+      const embed = new EmbedBuilder()
+        .setTitle(await t(lang, 'select_alt_title'))
+        .setColor(0x1900ff)
+        .setDescription(await t(lang, 'select_alt_desc'));
+      const msg = await ctx.replyAndFetch({ embeds: [embed], components: [row] });
+      if (!msg) return;
+
+      try {
+        const interaction = await msg.awaitMessageComponent({ 
+          componentType: ComponentType.StringSelect, 
+          time: 30000 
+        });
+        const index = parseInt(interaction.values[0]);
+        selectedAlt = alts[index];
+        await interaction.update({ embeds: [], components: [], content: `🔍 Buscando presencia de **${selectedAlt.name}**...` });
+      } catch {
+        return msg.edit({ components: [], embeds: [new EmbedBuilder().setTitle('⏰ Tiempo agotado').setColor(0xED4245)] });
+      }
+    }
+  }
+
+  // Obtener presencia de la alt
+  if (!process.env.ROBLOX_COOKIE) return replyEmbed(ctx, 'error', 'no_cookie', 0xED4245, true);
+  
+  const presence = await roblox.getPresence(selectedAlt.id);
+  if (!presence) return replyEmbed(ctx, 'error', 'error_generic', 0xED4245, true);
+  
+  const { label, color } = roblox.formatPresence(presence.userPresenceType);
+  let gameName = null;
+  if (presence.userPresenceType === 2 && presence.universeId) {
+    gameName = await roblox.getGameName(presence.universeId);
+  }
+
+  const userColor = entry?.profileColor || 0x1900ff;
+  const embed = new EmbedBuilder()
+    .setTitle(`${label} — ${selectedAlt.name}`)
+    .setDescription(`**[${selectedAlt.displayName || selectedAlt.name}](https://www.roblox.com/users/${selectedAlt.id}/profile)**`)
+    .setColor(color);
+  if (gameName) embed.addFields({ name: '🕹️ ' + await t(lang, 'playing'), value: `[${gameName}](https://www.roblox.com/games/${presence.rootPlaceId})` });
+  if (presence.lastOnline) embed.addFields({ name: '🕐 ' + await t(lang, 'last_online'), value: new Date(presence.lastOnline).toLocaleString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) });
+  embed.setFooter({ text: await t(lang, 'requested_by', ctx.username) }).setTimestamp();
+
+  ctx.reply({ embeds: [embed] });
+}
+
 module.exports = {
   cmdPerfil,
   cmdAvatar,
@@ -497,5 +570,6 @@ module.exports = {
   cmdWhoisRoblox,
   cmdOutfit,
   cmdRAP,
-  cmdPlaytime
+  cmdPlaytime,
+  cmdEstadoAlt
 };
