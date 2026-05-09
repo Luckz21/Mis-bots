@@ -263,6 +263,11 @@ const translations = {
     profile_private: 'Tu perfil de Roblox ahora es privado.',
     dms_enabled: 'Mensajes directos del bot activados.',
     dms_disabled: 'Mensajes directos del bot desactivados.',
+    // Español
+    alt_not_found: '❌ No se encontró la alt **{0}**. Usa `/alts` para ver tus cuentas vinculadas.',
+    select_alt_title: '📋 Selecciona una cuenta alt',
+    select_alt_desc: 'Elige una de tus cuentas alt para ver su presencia.',
+    select_alt: 'Seleccionar alt...',
 
     // Admin
     admin_setverifiedrole: '✅ Rol de verificado configurado: {0}',
@@ -694,6 +699,11 @@ const translations = {
     profile_private: 'Your Roblox profile is now private.',
     dms_enabled: 'Bot direct messages enabled.',
     dms_disabled: 'Bot direct messages disabled.',
+    // Inglés
+    alt_not_found: '❌ Alt **{0}** not found. Use `/alts` to see your linked accounts.',
+    select_alt_title: '📋 Select an alt account',
+    select_alt_desc: 'Choose one of your alt accounts to check its presence.',
+    select_alt: 'Select alt...',
 
     // Admin
     admin_setverifiedrole: '✅ Verified role set: {0}',
@@ -1126,6 +1136,11 @@ const translations = {
     profile_private: 'Seu perfil do Roblox agora está privado.',
     dms_enabled: 'Mensagens diretas do bot ativadas.',
     dms_disabled: 'Mensagens diretas do bot desativadas.',
+    // Portugués
+    alt_not_found: '❌ Alt **{0}** não encontrada. Use `/alts` para ver suas contas vinculadas.',
+    select_alt_title: '📋 Selecione uma conta alt',
+    select_alt_desc: 'Escolha uma de suas contas alt para ver a presença.',
+    select_alt: 'Selecionar alt...',
 
     // Admin
     admin_setverifiedrole: '✅ Cargo de verificado definido: {0}',
